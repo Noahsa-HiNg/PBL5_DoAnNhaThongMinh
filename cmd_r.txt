@@ -1,0 +1,10 @@
+ping pbl5.local -4 #để lấy ip ras
+ssh pi@192.168.1.100 #để vào ras
+mật khẩu : 123456
+port: 1883 #port mqtt
+
+#cài đặt mosquitto
+sudo apt update
+sudo apt install -y mosquitto mosquitto-clients
+sudo systemctl enable mosquitto
+sudo systemctl start mosquitto
