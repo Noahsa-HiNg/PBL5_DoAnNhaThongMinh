@@ -3,8 +3,6 @@ venv/
 .env
 
 # Bỏ qua các file model AI (Hàng trăm MB, Git sẽ không cho up)
-ai_engine/models/*.onnx
-ai_engine/models/vosk-model-*
-
+ai_engine/pi5_deploy
 # Bỏ qua file build của ESP32
 hardware/node_esp32/.pio/
