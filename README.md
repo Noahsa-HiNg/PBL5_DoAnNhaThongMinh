@@ -48,7 +48,3 @@ pbl5-smarthome-edge-ai/
 ├── frontend/        # Giao diện Web Dashboard (HTML/CSS/JS)
 └── hardware/        # Code C++ (PlatformIO) nạp cho ESP32 & Sơ đồ mạch
 
-ping pbl5.local -4 #để lấy ip ras
-ssh pi@192.168.1.100 #để vào ras
-mật khẩu : 123456
-port: 1883 #port mqtt

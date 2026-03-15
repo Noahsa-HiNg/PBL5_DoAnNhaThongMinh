@@ -1,0 +1,81 @@
+# DANH SÁCH API CẦN KIỂM THỬ TRÊN POSTMAN
+---
+Lưu ý: Chạy lệnh `uvicorn main:app --reload` để start server trước khi test.
+Base URL (Mặc định): `http://127.0.0.1:8000`
+
+---
+## 1. QUẢN LÝ PHÒNG (ROOMS)
+**URL Base**: `/api/rooms`
+
+### 1.1 Lấy danh sách toàn bộ phòng (GET)
+- **Method**: `GET`
+- **URL**: `http://127.0.0.1:8000/api/rooms/`
+- **Body**: Không cần
+
+### 1.2 Tạo phòng mới (POST)
+- **Method**: `POST`
+- **URL**: `http://127.0.0.1:8000/api/rooms/`
+- **Headers**: `Content-Type: application/json`
+- **Body (JSON)**:
+```json
+{
+  "name": "Phòng Khách"
+}
+```
+*(Thử tạo 1 phòng "Phòng Khách", sau đó tạo lại "Phòng Khách" để xem lỗi trùng lặp có báo "Tên phòng này đã tồn tại!" không)*
+
+### 1.3 Cập nhật tên phòng (PUT)
+- **Method**: `PUT`
+- **URL**: `http://127.0.0.1:8000/api/rooms/{room_id}` (Ví dụ: `http://127.0.0.1:8000/api/rooms/1`)
+- **Headers**: `Content-Type: application/json`
+- **Body (JSON)**:
+```json
+{
+  "name": "Phòng Ngủ Master"
+}
+```
+
+### 1.4 Xóa phòng (DELETE)
+- **Method**: `DELETE`
+- **URL**: `http://127.0.0.1:8000/api/rooms/{room_id}` (Ví dụ: `http://127.0.0.1:8000/api/rooms/1`)
+- **Body**: Không cần
+
+---
+## 2. QUẢN LÝ ESP NODES (MẠCH ĐIỀU KHIỂN)
+**URL Base**: `/api/esp_nodes`
+
+*(Lưu ý: Test API phần ESP Nodes thì nhớ thêm file `EspNodeBase_router.py` vào `main.py` nhé)*
+
+### 2.1 Lấy danh sách toàn bộ ESP Nodes (GET)
+- **Method**: `GET`
+- **URL**: `http://127.0.0.1:8000/api/esp_nodes/`
+- **Body**: Không cần
+
+### 2.2 Đăng ký mạch ESP Node mới (POST)
+- **Method**: `POST`
+- **URL**: `http://127.0.0.1:8000/api/esp_nodes/`
+- **Headers**: `Content-Type: application/json`
+- **Body (JSON)**:
+```json
+{
+  "mac_address": "AA:BB:CC:DD:EE:FF",
+  "location_desc": "Tủ điện tầng 2"
+}
+```
+
+### 2.3 Cập nhật thông tin ESP Node (PUT)
+- **Method**: `PUT`
+- **URL**: `http://127.0.0.1:8000/api/esp_nodes/{esp_node_id}` (Ví dụ id là 1: `http://127.0.0.1:8000/api/esp_nodes/1`)
+- **Headers**: `Content-Type: application/json`
+- **Body (JSON)**:
+```json
+{
+  "mac_address": "AA:BB:CC:DD:EE:FF",
+  "location_desc": "Đã dời ra hành lang"
+}
+```
+
+### 2.4 Xóa mạch ESP Node (DELETE)
+- **Method**: `DELETE`
+- **URL**: `http://127.0.0.1:8000/api/esp_nodes/{esp_node_id}` (Ví dụ: `http://127.0.0.1:8000/api/esp_nodes/1`)
+- **Body**: Không cần

@@ -2,9 +2,15 @@ ping pbl5.local -4 #để lấy ip ras
 ssh pi@192.168.1.100 #để vào ras
 mật khẩu : 123456
 port: 1883 #port mqtt
-
+mac: 2C:CF:67:27:E5:E2
+esp32 type : Doit esp32 devkit v1
 #cài đặt mosquitto
 sudo apt update
 sudo apt install -y mosquitto mosquitto-clients
 sudo systemctl enable mosquitto
 sudo systemctl start mosquitto
+sudo shutdown -h now
+#subcribe
+mosquitto_sub -h localhost -t "pbl5/sensor" -v
+#vào virtual environment
+source pbl5_env/bin/activate
