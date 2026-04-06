@@ -1,41 +1,38 @@
-#include "light_sensor.h"
+#include "light_device.h"        
+#include "fan_device.h"          
 #include "wifi_mqtt.h"
-#include "dht11_sensor.h"
-
-unsigned long lastMsg = 0;
-enum DeviceType { LIGHT, FAN, DHT11_TEMP, DHT11_HUMID, LIGHT_SENSOR };
+#include "sensor_device.h"
+#include "light_sensor_device.h"
+#include "devices_config.h"
+#include "sensor_device.h"
 void setup() {
   Serial.begin(115200);
-  setup_dht11();
-  setup_light_sensor(); 
-  setup_wifi_mqtt();    
-  fetchConfig();
+  
+  // 1. Khởi động từng phần cứng cứng
+  setup_lights();
+  setup_fans();
+  setup_sensors();
+  setup_light_sensors();
+  // 2. Bật mạng lên
+  setup_door();
+  setup_pins();
+  setup_wifi_mqtt();
 }
-
-
-
 
 void loop() {
   duy_tri_mqtt();
-
-  unsigned long now = millis();
-  if (now - lastMsg > 5000) {
-    lastMsg = now;
-
-    int muc_anh_sang = read_light_sensor();
-    String payload_anh_sang = "{\"light\": " + String(muc_anh_sang) + "}";
-    gui_len_mqtt("pbl5/sensor/light", payload_anh_sang);
-
-    float muc_nhiet_do = read_nhiet_do();
-    if (muc_nhiet_do != -999.0) { 
-      String payload_nhiet_do = "{\"temperature\": " + String(muc_nhiet_do) + "}";
-      gui_len_mqtt("pbl5/sensor/temperature", payload_nhiet_do); 
+  read_and_send_sensors();
+  read_and_send_light_sensors();
+  
+  if (Serial.available()) {
+    char c = Serial.read();
+    if (c == '1') {
+      analogWrite(18, 255); // Gõ '1' bật quạt tối đa
+      Serial.println("Fan ON");
+    } else if (c == '0') {
+      analogWrite(18, 0);   // Gõ '0' tắt quạt
+      Serial.println("Fan OFF");
     }
-
-    float muc_do_am = read_do_am();
-    if (muc_do_am != -999.0) {
-      String payload_do_am = "{\"humidity\": " + String(muc_do_am) + "}"; 
-      gui_len_mqtt("pbl5/sensor/humidity", payload_do_am); 
-    }
-  }
+  
+}
 }

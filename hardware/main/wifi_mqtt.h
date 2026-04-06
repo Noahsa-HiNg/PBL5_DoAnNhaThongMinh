@@ -1,126 +1,112 @@
-#pragma once // Lệnh chống trùng lặp file
+#pragma once
 #include <WiFi.h>
 #include <PubSubClient.h>
-#include "devices_struct.h"
-// ================= CẤU HÌNH =================
-const char* ssid = "THE LIVING ROOM";       // Tên Wi-Fi
-const char* password = "focusspace";        // Mật khẩu Wi-Fi
-const char* mqtt_server = "192.168.123.25"; // IP của Raspberry Pi
+#include <ArduinoJson.h>
+#include "devices_config.h"
+#include "light_device.h" // Kéo file xử lý vào
+#include "fan_device.h"   // Kéo file xử lý vào
+#include "door_device.h"
+#include "buzzer_device.h"
+
+const char* ssid = "hieu";       // Tên Wi-Fi
+const char* password = "123456719";        // Mật khẩu Wi-Fi
+const char* mqtt_server = "172.20.10.2"; // IP của máy tính chạy Server ras
 const int mqtt_port = 1883;
-// ============================================
 
 WiFiClient espClient;
 PubSubClient client(espClient);
+  
+void callback(char* topic, byte* payload, unsigned int length) {
+    String message = "";
+    for (int i = 0; i < length; i++) message += (char)payload[i];
+    String strTopic = String(topic);
 
-// 1. Hàm nội bộ: Bắt sóng Wi-Fi (Chống treo)
-void setup_wifi() {
-  delay(10);
-  Serial.print("\nDang ket noi vao Wi-Fi: "); Serial.println(ssid);
-  WiFi.mode(WIFI_STA); 
-  WiFi.disconnect();   
-  delay(100);          
-  WiFi.begin(ssid, password);
+    // Lấy ID thiết bị từ cuối chuỗi Topic
+    int device_id = strTopic.substring(strTopic.lastIndexOf('/') + 1).toInt();
 
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500); Serial.print("."); attempts++;
-    if (attempts > 30) {
-      Serial.println("\n[LỖI] Khong the ket noi Wi-Fi! Tu dong Reset...");
-      delay(3000); ESP.restart(); 
+    // KIỂM TRA ID VÀ ĐIỀU KHIỂN
+    if (device_id >= 1 && device_id <= 4) {
+        control_light(device_id, message); // Hàm gọi đèn
+    } 
+    else if (device_id >= 5 && device_id <= 8) {
+        control_fan(device_id, message);
+    } 
+    else if (device_id == 11) {
+        control_door(device_id, message); // GỌI CỬA
+    } 
+    else if (device_id == 12) {
+        control_buzzer(device_id, message); // GỌI LOA
+        
+        // Hoặc nếu Server gửi lệnh BEEP thì gọi beep_alarm
+        if (message == "BEEP") {
+            beep_alarm(device_id);
+        }
     }
-  }
-  Serial.println("\n✅ [XONG] WiFi da ket noi! IP: " + WiFi.localIP().toString());
 }
 
-// 2. Hàm nội bộ: Kết nối Bưu điện MQTT
-void reconnect() {
-  while (!client.connected()) {
-    Serial.print("Dang thu ket noi MQTT Broker... ");
-    if (client.connect("ESP32_Dev1_Client")) {
-      Serial.println("✅ [THÀNH CÔNG] Da ket noi MQTT!");
-    } else {
-      Serial.print("❌ [THẤT BẠI] Ma loi rc="); Serial.print(client.state());
-      Serial.println(" - Thu lai sau 5 giay...");
-      delay(5000);
-    }
-  }
-}
-
-// ---------------------------------------------------------
-// CÁC HÀM CÔNG CỤ ĐỂ FILE CHÍNH GỌI RA DÙNG (APIs)
-// ---------------------------------------------------------
-
-// Hàm A: Dùng ở setup() - Khởi động tất cả
 void setup_wifi_mqtt() {
-  setup_wifi();
+  Serial.printf("\n🔄 Đang kết nối vào mạng Wi-Fi: %s", ssid);
+  WiFi.mode(WIFI_STA); // Ép ESP32 làm thiết bị nhận Wi-Fi (không tự phát)
+  WiFi.disconnect();
+  delay(100);
+  WiFi.begin(ssid, password);
+  
+  while (WiFi.status() != WL_CONNECTED) { 
+    delay(500); 
+    Serial.print("-"); 
+  }
+  
+  // IN RA KHI CÓ WI-FI
+  Serial.println("\n✅ Đã kết nối Wi-Fi thành công!");
+  Serial.print("🌐 Địa chỉ IP của ESP32 là: ");
+  Serial.println(WiFi.localIP());
+
   client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
 }
 
-// Hàm B: Dùng ở loop() - Giữ mạng không bị đứt
 void duy_tri_mqtt() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\n⚠️ Mất kết nối Wi-Fi! Đang thử kết nối lại...");
+    
+    WiFi.disconnect();
+    WiFi.begin(ssid, password);
+    
+    int attempts = 0;
+    // Cố gắng thử trong vòng 10 giây (20 lần x 500ms) để không làm treo toàn bộ code
+    while (WiFi.status() != WL_CONNECTED && attempts < 20) { 
+      delay(500);
+      Serial.print(".");
+      attempts++;
+    }
+    
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("\n✅ Đã khôi phục kết nối Wi-Fi thành công!");
+      Serial.print("🌐 Địa chỉ IP mới là: ");
+      Serial.println(WiFi.localIP());
+    } else {
+      Serial.println("\n❌ Khôi phục Wi-Fi thất bại! Sẽ thử lại ở chu kỳ sau...");
+      return; // Thoát hàm luôn, không chạy xuống phần MQTT nữa để tránh lỗi
+    }
+  }
   if (!client.connected()) {
-    reconnect();
+    Serial.print("🔄 Đang thử kết nối tới MQTT Broker... ");
+    
+    if (client.connect("ESP32Client")) {
+      // IN RA KHI KẾT NỐI BROKER THÀNH CÔNG
+      Serial.println("✅ Đã kết nối MQTT Broker thành công! ");
+      
+      client.subscribe("home/control/device/#");
+      Serial.println("📡 Đã đăng ký lắng nghe lệnh điều khiển!");
+    } else {
+      // IN RA MÃ LỖI NẾU THẤT BẠI ĐỂ DỄ BẮT BỆNH
+      Serial.println(WiFi.localIP());
+      Serial.print("❌ Thất bại! Mã lỗi (rc) = ");
+
+      Serial.print(client.state());
+      Serial.println(" -> Sẽ thử lại sau 5 giây...");
+      delay(5000); // Đợi 5 giây rồi mới thử lại tránh làm treo board
+    }
   }
   client.loop();
-}
-
-// Hàm C: Dùng để ném dữ liệu đi cho nhanh
-void gui_len_mqtt(String topic, String  ) {
-  Serial.print("📤 Dang gui len topic [" + topic + "]: "); 
-  Serial.print(topic + " | ");
-  Serial.println(payload);
-  client.publish(topic.c_str(), payload.c_str());
-}
-
-void callback(char* topic, byte* payload, unsigned int length) {
-  String message = "";
-  for (int i = 0; i < length; i++) message += (char)payload[i];
-  
-  String strTopic = String(topic);
-  // Cắt chuỗi lấy ID từ topic "pbl5/control/device/4" -> 4
-  int receivedID = strTopic.substring(strTopic.lastIndexOf('/') + 1).toInt();
-
-  // Tìm trong danh sách myDevices
-  for (int i = 0; i < deviceCount; i++) {
-    if (myDevices[i].id == receivedID && myDevices[i].type == "actuator") {
-      int state = (message == "ON") ? HIGH : LOW;
-      digitalWrite(myDevices[i].pin, state);
-      Serial.printf("🎯 Điều khiển thiết bị ID %d tại Pin %d -> %s\n", receivedID, myDevices[i].pin, message.c_str());
-    }
-  }
-}
-
-void fetchConfig() {
-  if (WiFi.status() == WL_CONNECTED) {
-    HTTPClient http;
-    http.begin(config_url);
-    int httpCode = http.get();
-
-    if (httpCode == 200) {
-      String payload = http.getString();
-      Serial.println("📥 Đã nhận cấu hình: " + payload);
-
-      // Giải mã JSON từ Backend trả về
-      DynamicJsonDocument doc(2048);
-      deserializeJson(doc, payload);
-      JsonArray root = doc.as<JsonArray>();
-
-      deviceCount = root.size();
-      for (int i = 0; i < deviceCount; i++) {
-        myDevices[i].id = root[i]["id"];
-        myDevices[i].type = root[i]["type"].as<String>();
-        myDevices[i].pin = root[i]["pin"];
-
-        // Tự động cấu hình chân Pin dựa trên loại thiết bị
-        if (myDevices[i].type == "actuator") {
-          pinMode(myDevices[i].pin, OUTPUT);
-          digitalWrite(myDevices[i].pin, LOW); // Mặc định tắt
-        } else {
-          pinMode(myDevices[i].pin, INPUT);
-        }
-      }
-      Serial.println("✅ Cấu hình chân Pin hoàn tất!");
-    }
-    http.end();
-  }
 }
