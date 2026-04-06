@@ -3,7 +3,9 @@ import requests
 
 router = APIRouter(prefix="/api/weather", tags=["Thời tiết"])
 
-OPENWEATHER_API_KEY = "6052a7b7ed8d97552e1d5b0b395639a4" 
+OPENWEATHER_API_KEY = "" 
+#6052a7b7ed8d97552e1d5b0b395639a4
+
 
 @router.get("/current")
 def get_current_weather(city: str = "Da Nang"): 
