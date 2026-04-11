@@ -2,6 +2,13 @@
 venv/
 .env
 
+# Bỏ qua file cache Python (tự sinh, xóa thoải mái)
+__pycache__/
+*.pyc
+
+# Bỏ qua file database SQLite (dữ liệu local)
+*.db
+
 # Bỏ qua các file model AI (Hàng trăm MB, Git sẽ không cho up)
 ai_engine/pi5_deploy
 # Bỏ qua file build của ESP32

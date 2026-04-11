@@ -1,116 +1,196 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 from datetime import datetime, timedelta
-from database import get_db_connection
+from core.database import get_db_connection, get_device_by_id, get_devices_by_type
+from models.schemas import ScheduleSetRequest, TimerSetRequest, BatchTimerRequest
 
-router = APIRouter(prefix="/api/schedules", tags=["Hẹn giờ & Báo thức"])
+router = APIRouter(prefix="/api/schedules", tags=["Hẹn giờ & Lịch trình"])
 
-# --- SCHEMAS ---
-class AlarmRequest(BaseModel):
-    device_id: int
-    command: str
-    time: str
-
-class TimerRequest(BaseModel):
-    device_id: int
-    command: str
-    delay_minutes: int
-
-class AllDevicesTimerRequest(BaseModel):
-    device_type: str        # "light", "fan", hoặc "all"
-    command: str            # "ON" hoặc "OFF" (hoặc JSON của quạt)
-    delay_minutes: int
-
-# --- API BÁO THỨC & HẸN GIỜ ---
-@router.post("/set-alarm") #hẹn giờ
-async def set_alarm(req: AlarmRequest):
-    conn = get_db_connection()
-    conn.execute(
-        "INSERT INTO schedules (device_id, command, trigger_time) VALUES (?, ?, ?)",
-        (req.device_id, req.command, req.time)
-    )
-    conn.commit()
-    conn.close()
-    return {"message": f"Đã đặt báo thức cho thiết bị {req.device_id} vào lúc {req.time}"}
-
-@router.post("/set-timer") #hẹn giờ sau 1 khoảng thời gian
-async def set_timer(req: TimerRequest):
-    trigger_time = (datetime.now() + timedelta(minutes=req.delay_minutes)).strftime("%Y-%m-%d %H:%M:%S")
-    conn = get_db_connection()
-    conn.execute(
-        "INSERT INTO schedules (device_id, command, trigger_time) VALUES (?, ?, ?)",
-        (req.device_id, req.command, trigger_time)
-    )
-    conn.commit()
-    conn.close()
-    return {"message": f"Đã hẹn giờ sau {req.delay_minutes} phút ({trigger_time})"}
-
-@router.post("/timer-batch") #hẹn giờ tất cả thiết bị
-async def set_batch_timer(req: AllDevicesTimerRequest):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    trigger_time = (datetime.now() + timedelta(minutes=req.delay_minutes)).strftime("%Y-%m-%d %H:%M:%S")
+@router.post("/set")
+async def set_schedule(req: ScheduleSetRequest):
+    """Đặt hẹn giờ theo thời gian tuyệt đối (ISO 8601)"""
+    device = get_device_by_id(req.device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Không tìm thấy thiết bị")
     
-    query = "SELECT id FROM devices"
-    params = []
-    if req.device_type != "all":
-        query += " WHERE type = ?"
-        params.append(req.device_type)
-        
-    cursor.execute(query, params)
-    devices = cursor.fetchall()
-    
-    if not devices:
-        conn.close()
-        return {"error": "Không tìm thấy thiết bị phù hợp"}
-
-    for device in devices:
-        did = device['id']
-        final_cmd = req.command
-        if req.device_type == "fan" and req.command == "OFF":
-            final_cmd = '0 - OFF' 
-            
-        cursor.execute(
+    conn = get_db_connection()
+    try:
+        conn.execute(
             "INSERT INTO schedules (device_id, command, trigger_time) VALUES (?, ?, ?)",
-            (did, final_cmd, trigger_time)
+            (req.device_id, req.command, req.time)
         )
+        conn.commit()
+        
+        # Lấy ID vừa tạo
+        cursor = conn.execute("SELECT last_insert_rowid()")
+        schedule_id = cursor.fetchone()[0]
+    finally:
+        conn.close()
     
-    conn.commit()
-    conn.close()
-    return {"status": "success", "message": f"Đã hẹn giờ {req.command} cho {len(devices)} thiết bị vào lúc {trigger_time}"}
+    return {
+        "status": "success",
+        "message": f"Đã đặt hẹn giờ cho {device['name']} vào lúc {req.time}",
+        "data": {
+            "schedule_id": schedule_id,
+            "device_id": req.device_id,
+            "device_name": device["name"],
+            "command": req.command,
+            "execute_at": req.time,
+            "status": "PENDING"
+        }
+    }
 
-# --- API TRUY VẤN & HỦY BÁO THỨC ---
+@router.post("/set-timer")
+async def set_timer(req: TimerSetRequest):
+    """Hẹn giờ sau N phút kể từ bây giờ"""
+    device = get_device_by_id(req.device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Không tìm thấy thiết bị")
+    
+    trigger_time = (datetime.now() + timedelta(minutes=req.delay_minutes)).strftime("%Y-%m-%d %H:%M:%S")
+    
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            "INSERT INTO schedules (device_id, command, trigger_time) VALUES (?, ?, ?)",
+            (req.device_id, req.command, trigger_time)
+        )
+        conn.commit()
+        cursor = conn.execute("SELECT last_insert_rowid()")
+        schedule_id = cursor.fetchone()[0]
+    finally:
+        conn.close()
+    
+    return {
+        "status": "success",
+        "message": f"Đã hẹn giờ {req.command} cho {device['name']} sau {req.delay_minutes} phút",
+        "data": {
+            "schedule_id": schedule_id,
+            "device_id": req.device_id,
+            "device_name": device["name"],
+            "command": req.command,
+            "execute_at": trigger_time,
+            "status": "PENDING"
+        }
+    }
+
+@router.post("/batch")
+async def set_batch_timer(req: BatchTimerRequest):
+    """Hẹn giờ hàng loạt theo loại thiết bị (light/fan/all)"""
+    trigger_time = (datetime.now() + timedelta(minutes=req.delay_minutes)).strftime("%Y-%m-%d %H:%M:%S")
+    
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        
+        # Lấy danh sách thiết bị theo loại
+        if req.device_type == "all":
+            cursor.execute("SELECT id, name FROM devices WHERE type IN ('light', 'fan', 'buzzer')")
+        else:
+            cursor.execute("SELECT id, name FROM devices WHERE type = ?", (req.device_type,))
+        
+        devices = cursor.fetchall()
+        if not devices:
+            raise HTTPException(status_code=404, detail="Không tìm thấy thiết bị phù hợp")
+        
+        schedules = []
+        for device in devices:
+            cursor.execute(
+                "INSERT INTO schedules (device_id, command, trigger_time) VALUES (?, ?, ?)",
+                (device["id"], req.command, trigger_time)
+            )
+            sid = cursor.lastrowid
+            schedules.append({
+                "schedule_id": sid,
+                "device_id": device["id"],
+                "device_name": device["name"]
+            })
+        
+        conn.commit()
+    finally:
+        conn.close()
+    
+    return {
+        "status": "success",
+        "message": f"Đã hẹn giờ {req.command} cho {len(schedules)} thiết bị vào lúc {trigger_time}",
+        "data": {
+            "affected_count": len(schedules),
+            "device_type": req.device_type,
+            "execute_at": trigger_time,
+            "schedules": schedules
+        }
+    }
+
 @router.get("/active")
 async def get_active_schedules():
+    """Lấy danh sách hẹn giờ đang chờ (PENDING)"""
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM schedules WHERE status = 'PENDING' ORDER BY trigger_time ASC")
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
-
-@router.delete("/cancel/{schedule_id}")
-async def cancel_schedule(schedule_id: int):
-    conn = get_db_connection()
-    cursor = conn.execute("UPDATE schedules SET status = 'CANCELLED' WHERE schedule_id = ?", (schedule_id,))
-    conn.commit()
-    conn.close()
-    if cursor.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Không tìm thấy báo thức này")
-    return {"message": "Đã hủy báo thức thành công"}
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT s.*, d.name as device_name 
+            FROM schedules s 
+            LEFT JOIN devices d ON s.device_id = d.id 
+            WHERE s.status = 'PENDING' 
+            ORDER BY s.trigger_time ASC
+        """)
+        rows = cursor.fetchall()
+    finally:
+        conn.close()
+    
+    schedules = []
+    for row in rows:
+        schedules.append({
+            "schedule_id": row["schedule_id"],
+            "device_id": row["device_id"],
+            "device_name": row["device_name"],
+            "command": row["command"],
+            "trigger_time": row["trigger_time"],
+            "status": row["status"],
+            "created_at": row["created_at"]
+        })
+    
+    return {
+        "status": "success",
+        "data": {
+            "total": len(schedules),
+            "schedules": schedules
+        }
+    }
 
 @router.delete("/cancel-all")
 async def cancel_all_schedules():
+    """Hủy tất cả hẹn giờ đang chờ"""
     conn = get_db_connection()
-    cursor = conn.execute("UPDATE schedules SET status = 'CANCELLED' WHERE status = 'PENDING'")
-    conn.commit()
-    conn.close()
-    return {"message": "Đã hủy tất cả báo thức thành công"}
+    try:
+        cursor = conn.execute("UPDATE schedules SET status = 'CANCELLED' WHERE status = 'PENDING'")
+        cancelled_count = cursor.rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    
+    return {
+        "status": "success",
+        "message": f"Đã hủy {cancelled_count} hẹn giờ đang chờ",
+        "data": {"cancelled_count": cancelled_count}
+    }
 
-def get_all_id_by_type(device_type: str):
+@router.delete("/{schedule_id}")
+async def cancel_schedule(schedule_id: int):
+    """Hủy 1 hẹn giờ theo ID"""
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id FROM devices WHERE type = ?", (device_type,))
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+    try:
+        cursor = conn.execute(
+            "UPDATE schedules SET status = 'CANCELLED' WHERE schedule_id = ? AND status = 'PENDING'",
+            (schedule_id,)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    
+    if cursor.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Không tìm thấy hẹn giờ hoặc đã bị hủy")
+    
+    return {
+        "status": "success",
+        "message": f"Đã hủy hẹn giờ #{schedule_id}"
+    }

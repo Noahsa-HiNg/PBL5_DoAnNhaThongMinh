@@ -1,10 +1,52 @@
-from fastapi import APIRouter
-from database import get_db_connection, get_latest_sensor_data,get_id_by_name
-from fastapi import HTTPException
-router = APIRouter(prefix="/status", tags=["Trạng Thái Thiết Bị"])
+from fastapi import APIRouter, HTTPException
+from core.database import get_db_connection, get_device_by_id, get_devices_by_room, get_room_by_slug
 
-@router.get("/")
-def get_all_devices():
+router = APIRouter(prefix="/api/status", tags=["Trạng Thái Thiết Bị"])
+
+# --- ① Route CỐ ĐỊNH phải khai báo TRƯỚC route có {biến} ---
+
+@router.get("/door")
+def get_door_status():
+    """Lấy trạng thái khóa cửa (device_id = 11)"""
+    door = get_device_by_id(11)
+    if not door:
+        raise HTTPException(status_code=404, detail="Không tìm thấy cửa")
+    return {
+        "status": "success",
+        "data": {
+            "device_id": door["id"],
+            "name": door["name"],
+            "state": door["status"],
+        }
+    }
+
+@router.get("/rooms/{room_slug}")
+def get_room_status(room_slug: str):
+    """Lấy tất cả thiết bị trong 1 phòng theo slug (living_room, bedroom, kitchen, yard)"""
+    room = get_room_by_slug(room_slug)
+    if not room:
+        raise HTTPException(status_code=404, detail=f"Phòng '{room_slug}' không tồn tại")
+    
+    devices = get_devices_by_room(room["id"])
+    return {
+        "status": "success",
+        "data": {
+            "room": room["name"],
+            "slug": room["slug"],
+            "devices": [
+                {
+                    "device_id": d["id"],
+                    "name": d["name"],
+                    "type": d["type"],
+                    "state": d["status"]
+                } for d in devices
+            ]
+        }
+    }
+
+@router.get("/devices")
+def list_all_devices():
+    """Lấy trạng thái tất cả thiết bị"""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM devices")
@@ -14,35 +56,35 @@ def get_all_devices():
     result = []
     for d in devices:
         result.append({
-            "id": d["id"],
+            "device_id": d["id"],
+            "room_id": d["room_id"],
             "name": d["name"],
             "type": d["type"],
             "pin": d["pin"],
-            "status": d["status"]
+            "state": d["status"]
         })
-    return result
-
-@router.get("/latest/{device_id}")
-def get_sensor_status(device_id: int):
-    """
-    API lấy thông số mới nhất của một cảm biến (DHT11 hoặc Ánh sáng)
-    """
-    data = get_latest_sensor_data(device_id)
-    if not data:
-        raise HTTPException(status_code=404, detail="Không tìm thấy dữ liệu cho thiết bị này")
-    
-    # data thường là một dictionary hoặc tuple từ SQLite
     return {
-        "device_id": device_id,
-        "value1": data["value1"], # Nhiệt độ hoặc Ánh sáng
-        "value2": data["value2"], # Độ ẩm (nếu là DHT11)
-        "time": data["timestamp"]
+        "status": "success",
+        "data": {
+            "devices": result
+        }
     }
 
+# --- ② Route có {biến} khai báo SAU cùng ---
 
-@router.get("/{device_name}")
-def get_device_status(device_name: str):
-    device_id = get_id_by_name(device_name)
-    if not device_id:
+@router.get("/devices/{device_id}")
+def get_device_status(device_id: int):
+    """Lấy trạng thái 1 thiết bị theo ID"""
+    device = get_device_by_id(device_id)
+    if not device:
         raise HTTPException(status_code=404, detail="Không tìm thấy thiết bị")
-    return get_sensor_status(device_id)
+    return {
+        "status": "success",
+        "data": {
+            "device_id": device["id"],
+            "room_id": device["room_id"],
+            "name": device["name"],
+            "type": device["type"],
+            "state": device["status"]
+        }
+    }

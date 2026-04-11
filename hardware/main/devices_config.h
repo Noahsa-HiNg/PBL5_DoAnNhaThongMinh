@@ -14,23 +14,23 @@ bool autoFanMode = true;
 // Mảng giờ đây cực kỳ gọn gàng, nhìn vào là hiểu ngay!
 Device myDevices[deviceCount] = {
   // 4 ĐÈN 
-  {1, "light", 5},  
+  {1, "light", 18},  
   {2, "light", 19}, 
   {3, "light", 21}, 
   {4, "light", 22}, 
   
   // 4 QUẠT 
-  {5, "fan", 18},   
+  {5, "fan", 26},   
   {6, "fan", 25},   
-  {7, "fan", 27},   
-  {8, "fan", 33},   
+  {7, "fan", 33},   
+  {8, "fan", 32},   
   
   // 2 CẢM BIẾN
   {9, "sensor", 4}, 
-  {10, "light_sensor", 32},
+  {10, "light_sensor", 35},
 
   // THIẾT BỊ MỚI
-  {11, "door", 15},
+  {11, "door", 13},
   {12, "buzzer", 16} 
 };
 

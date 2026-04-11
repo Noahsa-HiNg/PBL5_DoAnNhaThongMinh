@@ -1,9 +1,11 @@
 import asyncio
 from datetime import datetime
-from database import get_db_connection,delete_old_history
-from mqtt_clients import mqtt_service
+from core.database import get_db_connection, delete_old_history
+from services.mqtt_service import mqtt_service
+
 async def alarm_worker():
-    print("🚀 Hệ thống lính gác báo thức đã bắt đầu...")
+    """Quét bảng schedules mỗi 5 giây, kích hoạt lệnh đến hạn"""
+    print("🚀 Worker hẹn giờ (schedule) đã bắt đầu...")
     while True:
         try:
             conn = get_db_connection()
@@ -32,21 +34,48 @@ async def alarm_worker():
             conn.close()
             
         except Exception as e:
-            print(f"❌ Lỗi Worker: {e}")
+            print(f"❌ Lỗi Worker hẹn giờ: {e}")
 
         await asyncio.sleep(5)
 
+async def buzzer_alarm_worker():
+    """Quét bảng alarms mỗi 30 giây, kích hoạt buzzer khi đến giờ báo thức"""
+    print("🚀 Worker báo thức (alarm) đã bắt đầu...")
+    while True:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            current_time = datetime.now().strftime("%H:%M")
+            cursor.execute(
+                "SELECT * FROM alarms WHERE status = 'active' AND time = ?",
+                (current_time,)
+            )
+            alarms = cursor.fetchall()
+            
+            for alarm in alarms:
+                # Kích hoạt buzzer (device_id = 12)
+                mqtt_service.client.publish("home/control/device/12", "ON")
+                print(f"🔔 BÁO THỨC: {alarm['label'] or alarm['alarm_id']} lúc {alarm['time']}")
+                
+                # Nếu không repeat → đánh dấu done
+                if not alarm["repeat"]:
+                    conn.execute(
+                        "UPDATE alarms SET status = 'done' WHERE alarm_id = ?",
+                        (alarm["alarm_id"],)
+                    )
+            
+            conn.commit()
+            conn.close()
+            
+        except Exception as e:
+            print(f"❌ Lỗi Worker báo thức: {e}")
+        
+        await asyncio.sleep(30)
 
 async def cleanup_worker():
-    """Hàng ngày sẽ kiểm tra và xóa dữ liệu cũ một lần (Bản Async)"""
-    print("🚀 Worker dọn dẹp dữ liệu (Async) đã bắt đầu...")
+    """Mỗi 24 giờ xóa dữ liệu lịch sử cũ hơn 7 ngày"""
+    print("🚀 Worker dọn dẹp dữ liệu đã bắt đầu...")
     while True:
-        # 1. Thực hiện dọn dẹp
         delete_old_history()
-        
-        # 2. Ngủ trong 24 giờ (86400 giây) mà không làm nghẽn Server
-        await asyncio.sleep(86400)
-def start_cleanup_thread():
-    """Hàm để gọi từ main.py"""
-    t = threading.Thread(target=cleanup_worker, daemon=True)
-    t.start()
+        await asyncio.sleep(86400)  # 24 giờ

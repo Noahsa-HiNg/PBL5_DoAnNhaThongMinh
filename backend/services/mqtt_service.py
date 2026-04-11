@@ -1,14 +1,14 @@
 import paho.mqtt.client as mqtt
 import json
-
+from core.config import MQTT_BROKER, MQTT_PORT
 # Import hàm lưu Database mà em đã viết ở file database.py
-from database import insert_sensor_data 
+from core.database import insert_sensor_data
 
 class MQTTManager:
     def __init__(self):
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
-        self.broker = "172.20.10.2" # IP của em rất chuẩn
-        self.port = 1883
+        self.broker = MQTT_BROKER
+        self.port = MQTT_PORT
 
     def on_connect(self, client, userdata, flags, rc):
         if rc == 0:
