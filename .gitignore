@@ -1,8 +1,7 @@
-# Bỏ qua môi trường ảo của Python (Rất nặng, ai tự cài máy người nấy)
+
 venv/
 .env
-
-# Bỏ qua các file model AI (Hàng trăm MB, Git sẽ không cho up)
-ai_engine/pi5_deploy
-# Bỏ qua file build của ESP32
+.venv/
+__pycache__/
+agent/model
 hardware/node_esp32/.pio/
