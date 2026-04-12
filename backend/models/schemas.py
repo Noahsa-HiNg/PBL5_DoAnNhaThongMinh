@@ -1,91 +1,60 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
 
-# ==========================================
-# 1. MODELS CHO PHÒNG (ROOMS)
-# ==========================================
-class RoomBase(BaseModel):
-    name: str
+# ---- CONTROL SCHEMAS ----
+class LightControlRequest(BaseModel):
+    state: str          # "on" / "off"
 
-class RoomResponse(RoomBase):
-    id: int
-    
-    # Cho phép chuyển đổi trực tiếp từ dữ liệu SQL sang Object Pydantic
-    model_config = ConfigDict(from_attributes=True)
+class FanControlRequest(BaseModel):
+    state: str          # "on" / "off"
+    speed: Optional[int] = None  # 0-3, mặc định 2 khi on
 
-# ==========================================
-# 2. MODELS CHO LOẠI THIẾT BỊ (DEVICE TYPES)
-# ==========================================
-class DeviceTypeBase(BaseModel):
-    type_name: str
-    unit: Optional[str] = None
-    category: str  # Chỉ nhận 'sensor' hoặc 'actuator'
+class FanAdjustRequest(BaseModel):
+    action: str         # "up" / "down"
 
-class DeviceTypeResponse(DeviceTypeBase):
-    id: int
-    model_config = ConfigDict(from_attributes=True)
+class DoorControlRequest(BaseModel):
+    action: str         # "lock" / "unlock"
 
-# ==========================================
-# 3. MODELS CHO ESP NODES
-# ==========================================
-class EspNodeBase(BaseModel):
-    mac_address: str
-    location_desc: Optional[str] = None
+class BuzzerControlRequest(BaseModel):
+    state: str          # "on" / "off"
 
-class EspNodeResponse(EspNodeBase):
-    id: int
-    model_config = ConfigDict(from_attributes=True)
+class AutoModeRequest(BaseModel):
+    command: str        # "ON" / "OFF"
 
-# ==========================================
-# 4. MODELS CHO THIẾT BỊ (DEVICES)
-# ==========================================
-# Dùng khi muốn Thêm 1 thiết bị mới từ Web
-class DeviceCreate(BaseModel):
-    name: str
-    room_id: int
-    type_id: int
-    esp_id: int
-    pin: int
-
-# Dùng khi trả danh sách thiết bị về cho Web (Có ID)
-class DeviceResponse(DeviceCreate):
-    id: int
-    model_config = ConfigDict(from_attributes=True)
-
-class DeviceUpdate(BaseModel):
-    name: Optional[str] = None
-    room_id: Optional[int] = None
-    pin: Optional[int] = None
-
-# --- MODEL ĐẶC BIỆT DÀNH CHO FRONTEND ---
-# Khi Web hiển thị, nó cần Tên phòng chứ không cần Số ID của phòng
-class DeviceDetailResponse(BaseModel):
-    id: int
-    name: str
-    pin: int
-    room_name: str      # Tên phòng (Phòng Khách)
-    type_name: str      # Loại (RELAY_LIGHT)
-    category: str       # actuator/sensor
-    mac_address: str    # Của con ESP nào
-
-# ==========================================
-# 5. MODELS CHO DỮ LIỆU HOẠT ĐỘNG (LỊCH SỬ & TRẠNG THÁI)
-# ==========================================
-# Khi ESP32 gửi nhiệt độ lên
-class SensorDataInput(BaseModel):
+# ---- SCHEDULE SCHEMAS ----
+class ScheduleSetRequest(BaseModel):
     device_id: int
-    value: float
+    command: str
+    time: str           # ISO 8601
 
-# Khi Web muốn xem lịch sử nhiệt độ
-class SensorHistoryResponse(SensorDataInput):
-    id: int
-    timestamp: datetime
-    model_config = ConfigDict(from_attributes=True)
-
-# Khi Web muốn xem trạng thái Đèn đang Bật hay Tắt
-class DeviceStatusResponse(BaseModel):
+class TimerSetRequest(BaseModel):
     device_id: int
-    status: str
-    last_changed: datetime
-    model_config = ConfigDict(from_attributes=True)
+    command: str
+    delay_minutes: int
+
+class BatchTimerRequest(BaseModel):
+    device_type: str    # "light" / "fan" / "all"
+    command: str
+    delay_minutes: int
+
+# ---- ALARM SCHEMAS ----
+class AlarmSetRequest(BaseModel):
+    time: str           # "HH:MM"
+    repeat: Optional[bool] = False
+    label: Optional[str] = None
+
+# ---- BULK SCHEMAS ----
+class BulkAction(BaseModel):
+    device_id: int
+    command: str
+
+class BulkControlRequest(BaseModel):
+    actions: list[BulkAction]
+
+class BulkAllRequest(BaseModel):
+    state: str          # "on" / "off"
+
+# ---- CONTEXT SCHEMAS ----
+class ContextConfirmRequest(BaseModel):
+    pending_id: str
+    confirm: bool

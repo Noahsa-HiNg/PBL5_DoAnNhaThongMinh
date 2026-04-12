@@ -1,5 +1,6 @@
-ping pbl5.local -4 #để lấy ip ras
-ssh pi@192.168.1.100 #để vào ras
+ping pbl5.local -4
+#để lấy ip ras
+ssh pi@192.168.123.25 #để vào ras
 mật khẩu : 123456
 port: 1883 #port mqtt
 mac: 2C:CF:67:27:E5:E2
@@ -14,3 +15,11 @@ sudo shutdown -h now
 mosquitto_sub -h localhost -t "pbl5/sensor" -v
 #vào virtual environment
 source pbl5_env/bin/activate
+
+#reset wifi
+sudo nmcli d wifi rescan
+sudo nmcli d wifi list
+sudo nmcli d wifi connect "hieu" password "123456719"
+sudo nmtui
+
+
