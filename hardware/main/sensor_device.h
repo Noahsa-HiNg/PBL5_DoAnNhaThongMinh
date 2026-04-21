@@ -4,7 +4,6 @@
 #include <ArduinoJson.h>
 
 #define DHTTYPE DHT11
-const int CO2_HIGH_THRESHOLD = 500;
 // Tạo một mảng lưu trữ các bộ cảm biến (Kích thước bằng tổng số thiết bị)
 DHT* dht_sensors[deviceCount]; 
 unsigned long lastSendTime = 0;
@@ -43,7 +42,7 @@ void read_and_send_sensors() {
           String payload;
           serializeJson(doc, payload);
 
-          // Lắp ráp Topic động dựa theo ID của từng cảm biến
+          // Lắp ráp Topic động dựa theo I3D của từng cảm biến
           String topic = "home/sensors/" + String(myDevices[i].id);
           client.publish(topic.c_str(), payload.c_str());
           
@@ -51,17 +50,6 @@ void read_and_send_sensors() {
         } else {
           Serial.printf("❌ Lỗi đọc Cảm biến ID %d\n", myDevices[i].id);
         }
-        // int co2_value = analogRead(myDevices[i].pin_main); 
-        // if (co2_value > CO2_HIGH_THRESHOLD) {
-        //   // Nếu CO2 cao: Bật quạt (Giả sử quạt ID là 5) ở tốc độ cao nhất (3) và có xoay
-        //   control_fan(5, "{\"speed\":3, \"swing\":\"ON\"}");
-        //   Serial.println("⚠️ CO2 cao! Tự động bật quạt thông gió.");
-        //   client.publish("home/status/device/5", "{\"speed\":3, \"swing\":\"ON\"}");
-        // } else {
-        //   // Nếu CO2 ổn định: Tắt quạt
-        //   control_fan(5, "{\"speed\":0, \"swing\":\"OFF\"}");
-        //   client.publish("home/status/device/5", "{\"speed\":0, \"swing\":\"OFF\"}");
-        // }
       }
     }
   }

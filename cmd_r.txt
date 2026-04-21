@@ -1,6 +1,6 @@
 ping pbl5.local -4
 #để lấy ip ras
-ssh pi@192.168.123.25 #để vào ras
+ssh pi@172.20.10.3 #để vào ras
 mật khẩu : 123456
 port: 1883 #port mqtt
 mac: 2C:CF:67:27:E5:E2
