@@ -1,6 +1,7 @@
 import torch
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
-
+import os
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
 def get_model_and_processor(model_path):
     """
     Hàm nạp mô hình PhoWhisper và Processor lên GPU

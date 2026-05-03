@@ -25,18 +25,21 @@ from routers import (
 async def lifespan(app: FastAPI):
     """Khởi động và dọn dẹp tài nguyên khi server bật/tắt"""
     print("🚀 Đang khởi động Smart Home Server...")
-    
+
     # Khởi tạo Database
     init_db()
-    
+
     # Kết nối MQTT Broker
     mqtt_service.start()
-    
+
+    # Khởi động AI Pipeline (NLU + DM + ViT5)
+    voice_routers.init_pipeline()
+
     # Chạy Background Workers
     asyncio.create_task(alarm_worker())
     asyncio.create_task(buzzer_alarm_worker())
     asyncio.create_task(cleanup_worker())
-    
+
     yield  # Server đang chạy
 
     # Tắt server

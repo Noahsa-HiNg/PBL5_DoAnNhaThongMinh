@@ -14,7 +14,9 @@ import soundfile as sf
 import numpy as np
 
 # ── Cấu hình ────────────────────────────────────────────
-API_BASE    = "http://172.20.10.5:8000/api/voice"
+
+API_BASE    = "http://localhost:8000/api/voice"
+
 SAMPLE_RATE = 16000
 DURATION    = 3   # giây thu âm
 # ────────────────────────────────────────────────────────
@@ -72,16 +74,22 @@ def main():
     print("  [Nhập text]  → Gửi text thẳng lên API")
     print("  [quit]       → Thoát")
     print("=" * 50)
-    if True:
+
+
+    while True:
+
         try:
             user_input = input("\n👤 Bạn: ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\nTạm biệt!")
-            #break
+
+
+            break
 
         if user_input.lower() in ("quit", "exit", "q"):
             print("Tạm biệt!")
-            #break
+            break
+
 
         try:
             if user_input == "":
