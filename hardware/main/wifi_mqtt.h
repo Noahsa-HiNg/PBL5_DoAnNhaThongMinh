@@ -3,110 +3,116 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include "devices_config.h"
-#include "light_device.h" // Kéo file xử lý vào
-#include "fan_device.h"   // Kéo file xử lý vào
+#include "light_device.h" 
+#include "fan_device.h"   
 #include "door_device.h"
 #include "buzzer_device.h"
 
-const char* ssid = "hieu";       // Tên Wi-Fi
-const char* password = "123456719";        // Mật khẩu Wi-Fi
-const char* mqtt_server = "172.20.10.2"; // IP của máy tính chạy Server ras
+const char* ssid = "hieu";       
+const char* password = "123456719";        
+const char* mqtt_server = "172.20.10.3"; 
 const int mqtt_port = 1883;
 
 WiFiClient espClient;
 PubSubClient client(espClient);
-  
+
+// === BIẾN TOÀN CỤC ĐỂ BẤM GIỜ BẰNG MILLIS ===
+unsigned long lastWiFiCheck = 0;
+unsigned long lastMQTTCheck = 0;
+const unsigned long WIFI_RETRY_INTERVAL = 10000; // 10 giây thử lại WiFi 1 lần
+const unsigned long MQTT_RETRY_INTERVAL = 5000;  // 5 giây thử lại MQTT 1 lần
+
 void callback(char* topic, byte* payload, unsigned int length) {
-    String message = "";
-    for (int i = 0; i < length; i++) message += (char)payload[i];
+    // Tối ưu: Chuyển payload sang String trực tiếp, không dùng vòng lặp for
+    String message((char*)payload, length);
     String strTopic = String(topic);
 
-    // Lấy ID thiết bị từ cuối chuỗi Topic
     int device_id = strTopic.substring(strTopic.lastIndexOf('/') + 1).toInt();
 
     // KIỂM TRA ID VÀ ĐIỀU KHIỂN
     if (device_id >= 1 && device_id <= 4) {
-        control_light(device_id, message); // Hàm gọi đèn
+        control_light(device_id, message); 
     } 
     else if (device_id >= 5 && device_id <= 8) {
         control_fan(device_id, message);
     } 
     else if (device_id == 11) {
-        control_door(device_id, message); // GỌI CỬA
+        control_door(device_id, message); 
     } 
     else if (device_id == 12) {
-        control_buzzer(device_id, message); // GỌI LOA
-        
-        // Hoặc nếu Server gửi lệnh BEEP thì gọi beep_alarm
-        if (message == "BEEP") {
-            beep_alarm(device_id);
-        }
+        control_buzzer(device_id, message); 
     }
 }
 
 void setup_wifi_mqtt() {
-  Serial.printf("\n🔄 Đang kết nối vào mạng Wi-Fi: %s", ssid);
-  WiFi.mode(WIFI_STA); // Ép ESP32 làm thiết bị nhận Wi-Fi (không tự phát)
+  Serial.printf("\n🔄 Đang kết nối vào mạng Wi-Fi: %s\n", ssid);
+  WiFi.mode(WIFI_STA); 
   WiFi.disconnect();
   delay(100);
   WiFi.begin(ssid, password);
   
-  while (WiFi.status() != WL_CONNECTED) { 
+  // Trong setup thì dùng while + delay được vì nó chỉ chạy 1 lần lúc khởi động
+  int timeout = 0;
+  while (WiFi.status() != WL_CONNECTED && timeout < 20) { 
     delay(500); 
     Serial.print("-"); 
+    timeout++;
   }
   
-  // IN RA KHI CÓ WI-FI
-  Serial.println("\n✅ Đã kết nối Wi-Fi thành công!");
-  Serial.print("🌐 Địa chỉ IP của ESP32 là: ");
-  Serial.println(WiFi.localIP());
+  if(WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ Đã kết nối Wi-Fi thành công!");
+    Serial.print("🌐 Địa chỉ IP của ESP32 là: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("\n⚠️ Không thể kết nối Wi-Fi lúc này. Sẽ thử lại trong loop()!");
+  }
 
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
 }
 
 void duy_tri_mqtt() {
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("\n⚠️ Mất kết nối Wi-Fi! Đang thử kết nối lại...");
-    
-    WiFi.disconnect();
-    WiFi.begin(ssid, password);
-    
-    int attempts = 0;
-    // Cố gắng thử trong vòng 10 giây (20 lần x 500ms) để không làm treo toàn bộ code
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) { 
-      delay(500);
-      Serial.print(".");
-      attempts++;
-    }
-    
-    if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("\n✅ Đã khôi phục kết nối Wi-Fi thành công!");
-      Serial.print("🌐 Địa chỉ IP mới là: ");
-      Serial.println(WiFi.localIP());
-    } else {
-      Serial.println("\n❌ Khôi phục Wi-Fi thất bại! Sẽ thử lại ở chu kỳ sau...");
-      return; // Thoát hàm luôn, không chạy xuống phần MQTT nữa để tránh lỗi
-    }
-  }
-  if (!client.connected()) {
-    Serial.print("🔄 Đang thử kết nối tới MQTT Broker... ");
-    
-    if (client.connect("ESP32Client")) {
-      // IN RA KHI KẾT NỐI BROKER THÀNH CÔNG
-      Serial.println("✅ Đã kết nối MQTT Broker thành công! ");
-      
-      client.subscribe("home/control/device/#");
-      Serial.println("📡 Đã đăng ký lắng nghe lệnh điều khiển!");
-    } else {
-      // IN RA MÃ LỖI NẾU THẤT BẠI ĐỂ DỄ BẮT BỆNH
-      Serial.println(WiFi.localIP());
-      Serial.print("❌ Thất bại! Mã lỗi (rc) = ");
+  unsigned long currentMillis = millis();
 
-      Serial.print(client.state());
-      Serial.println(" -> Sẽ thử lại sau 5 giây...");
-      delay(5000); // Đợi 5 giây rồi mới thử lại tránh làm treo board
+  // 1. KIỂM TRA VÀ DUY TRÌ WI-FI
+  if (WiFi.status() != WL_CONNECTED) {
+    if (currentMillis - lastWiFiCheck >= WIFI_RETRY_INTERVAL) {
+      Serial.println("\n⚠️ Mất kết nối Wi-Fi! Đang thử kết nối lại...");
+      
+      // FIX LỖI WATCHDOG TIMEOUT Ở ĐÂY:
+      WiFi.disconnect();
+      delay(10); // Cho CPU dọn dẹp tác vụ mạng cũ
+      WiFi.mode(WIFI_STA);
+      delay(10); // Nhường quyền xử lý một nhịp trước khi gọi lệnh begin nặng nề
+      WiFi.begin(ssid, password); 
+      
+      lastWiFiCheck = currentMillis; 
     }
+    return; // Đang rớt mạng WiFi thì thoát hàm luônádasd
   }
-  client.loop();
+
+  // 2. KIỂM TRA VÀ DUY TRÌ MQTT
+  if (!client.connected()) {
+    if (currentMillis - lastMQTTCheck >= MQTT_RETRY_INTERVAL) {
+      Serial.print("🔄 Đang thử kết nối tới MQTT Broker... ");
+      lastMQTTCheck = currentMillis; 
+      
+      // Tạo Client ID ngẫu nhiên để tránh đụng độ và bị kick liên tục
+      String clientId = "ESP32Client-";
+      clientId += String(random(0xffff), HEX);
+      
+      if (client.connect(clientId.c_str())) {
+        Serial.println("✅ Đã kết nối MQTT Broker thành công! ");
+        client.subscribe("home/control/device/#");
+        Serial.println("📡 Đã đăng ký lắng nghe lệnh điều khiển!");
+      } else {
+        Serial.print("❌ Thất bại! Mã lỗi (rc) = ");
+        Serial.print(client.state());
+        Serial.println(" -> Sẽ thử lại sau 5 giây...");
+      }
+    }
+  } else {
+    // 3. NẾU MỌI THỨ KẾT NỐI OK THÌ DUY TRÌ VÒNG LẶP MQTT
+    client.loop();
+  }
 }

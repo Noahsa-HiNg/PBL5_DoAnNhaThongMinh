@@ -3,13 +3,12 @@
 
 struct Device {
   int id;
-  String type;      // "light", "fan", "sensor", "light_sensor", "door", "buzzer"
+  String type;      // "light", "fan", "sensor", "light_sensor", "door_lock", "buzzer"
   int pin;          // Chân cắm trên ESP32 (Đổi từ pin_main thành pin)
 };
 
 const int deviceCount = 12; 
-bool autoLightMode = true; 
-bool autoFanMode = true;
+
 
 // Mảng giờ đây cực kỳ gọn gàng, nhìn vào là hiểu ngay!
 Device myDevices[deviceCount] = {
@@ -30,7 +29,7 @@ Device myDevices[deviceCount] = {
   {10, "light_sensor", 35},
 
   // THIẾT BỊ MỚI
-  {11, "door", 13},
+  {11, "door_lock", 13},
   {12, "buzzer", 16} 
 };
 

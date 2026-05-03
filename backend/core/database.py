@@ -96,7 +96,7 @@ def init_db():
             (5, 1, 'Quạt Phòng Khách', 'fan', 26, '0'),
             (6, 2, 'Quạt Phòng Ngủ', 'fan', 25, '0'),
             (7, 3, 'Quạt Bếp', 'fan', 33, '0'),
-            (8, 1, 'Quạt Thông Gió', 'fan', 32, '0'), 
+            (8, 3, 'Quạt Thông Gió', 'fan', 32, '0'), 
             
             # --- CẢM BIẾN, CỬA, LOA (Gán tạm vào Phòng Khách: room_id = 1) ---
             (9, 1, 'Cảm biến Nhiệt ẩm', 'sensor', 4, '0'),

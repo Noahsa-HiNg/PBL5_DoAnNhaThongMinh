@@ -35,7 +35,7 @@ void control_fan(int id, String payload) {
             // Chuyển đổi mức tốc độ (1,2,3) sang giá trị băm xung PWM (0-255)
             if (speed == 1) pwmValue = 80;
             else if (speed == 2) pwmValue = 175;
-            else if (speed == 3) pwmValue = 255;
+            else if (speed >= 3) pwmValue = 255;
             // Nếu speed == 0 thì pwmValue vẫn là 0 (Tắt)
             
             // 3. Xuất xung PWM ra chân của quạt

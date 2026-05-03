@@ -1,25 +1,6 @@
 #pragma once
 #include "devices_config.h"
 
-void control_buzzer(int id, String command) {
-  for (int i = 0; i < deviceCount; i++) {
-    if (myDevices[i].id == id && myDevices[i].type == "buzzer") {
-      
-      if (command == "ON") {
-        digitalWrite(myDevices[i].pin, HIGH); // Bật loa kêu
-        Serial.println("📢 Loa: BẬT KÊU");
-      } 
-      else if (command == "OFF") {
-        digitalWrite(myDevices[i].pin, LOW);  // Tắt loa
-        Serial.println("📢 Loa: TẮT");
-      }
-      
-      break; // Tìm thấy thì dừng vòng lặp
-    }
-  }
-}
-
-// 💡 Tặng thêm: Hàm gọi loa kêu "Bíp Bíp Bíp" dùng làm chuông báo thức hoặc cảnh báo cháy
 void beep_alarm(int id) {
   for (int i = 0; i < deviceCount; i++) {
     if (myDevices[i].id == id && myDevices[i].type == "buzzer") {
@@ -35,3 +16,24 @@ void beep_alarm(int id) {
     }
   }
 }
+
+void control_buzzer(int id, String command) {
+  for (int i = 0; i < deviceCount; i++) {
+    if (myDevices[i].id == id && myDevices[i].type == "buzzer") {
+      
+      if (command == "ON") {
+        digitalWrite(myDevices[i].pin, HIGH); // Bật loa kêu
+        Serial.println("📢 Loa: BẬT KÊU");
+      } 
+      else if (command == "OFF") {
+        digitalWrite(myDevices[i].pin, LOW);  // Tắt loa
+        Serial.println("📢 Loa: TẮT");
+      }
+      else if (command == "BEEP") beep_alarm(id);
+      
+      break; // Tìm thấy thì dừng vòng lặp
+    }
+  }
+}
+
+// 💡 Tặng thêm: Hàm gọi loa kêu "Bíp Bíp Bíp" dùng làm chuông báo thức hoặc cảnh báo cháy
