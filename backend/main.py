@@ -1,9 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import uvicorn
 import asyncio
-
+from core.ws_manager import ws_manager
 from core.database import init_db
 from core.config import SERVER_PORT
 from services.mqtt_service import mqtt_service
@@ -74,6 +74,22 @@ app.include_router(voice_routers.router)        # /api/voice/...
 @app.get("/", tags=["Hệ thống"])
 def root():
     return {"message": "✅ PBL5 Smart Home Server v2.0 đang hoạt động!"}
+
+
+# --- WebSocket — Push realtime xuống Mobile ---
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    Mobile kết nối vào đây để nhận realtime update (sensor, thiết bị).
+    URL kết nối: ws://<IP_SERVER>:8000/ws
+    """
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            # Giữ kết nối sống — chờ mobile gửi ping hoặc bất kỳ text nào
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=SERVER_PORT, reload=True)
