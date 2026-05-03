@@ -30,8 +30,8 @@ from dialog_manager   import SmartHomeDialogManager
 from vit5_generator   import ViT5Generator
 from tts_speaker      import TTSSpeaker
 from tts_normalizer   import normalize_for_tts
-from stt_normalizer   import normalize_stt_output   # ← chuẩn hoá số→chữ sau STT
-from load_model_stt   import get_model_and_processor # ← load PhoWhisper
+from stt_normalizer   import normalize_stt_output
+from load_model_stt   import get_model_and_processor
 from config           import NLU_THRESHOLD
 
 # STT config
@@ -118,8 +118,6 @@ class SmartHomePipeline:
         self.stt_device    = None
 
         if enable_stt:
-            import os
-            # Đường dẫn mặc định nếu không truyền vào
             if stt_model_dir is None:
                 _base = os.path.dirname(os.path.abspath(__file__))
                 stt_model_dir = os.path.join(
@@ -167,6 +165,12 @@ class SmartHomePipeline:
         else:
             logger.info("🔇 [4/4] TTS bị tắt (--no-tts)")
 
+        # ── Log VRAM sau khi load xong ────────────────────────────
+        if torch.cuda.is_available():
+            allocated = torch.cuda.memory_allocated() / 1024**3
+            total     = torch.cuda.get_device_properties(0).total_memory / 1024**3
+            logger.info(f"🖥️  VRAM: {allocated:.2f}GB / {total:.2f}GB sau khi load models")
+
         logger.info("✅ Pipeline sẵn sàng!\n")
 
     # ─────────────────────────────────────────────────────────────
@@ -192,10 +196,10 @@ class SmartHomePipeline:
         print("✅ Xong!")
         return recording.squeeze()
 
-    def _transcribe(self, audio_array: np.ndarray) -> str:
+    def _transcribe(self, audio_array: np.ndarray) -> tuple[str, str]:
         """
-        Chạy PhoWhisper trên audio_array, trả về text thô.
-        Áp dụng normalize_stt_output ngay sau đó.
+        Chạy PhoWhisper trên audio_array.
+        Trả về (raw_text, normalized_text).
         """
         if self.stt_model is None:
             raise RuntimeError("STT chưa được khởi động.")
@@ -221,7 +225,6 @@ class SmartHomePipeline:
             predicted_ids, skip_special_tokens=True
         )[0].strip()
 
-        # Chuẩn hoá số → chữ ngay sau STT, trước khi vào NLU
         normalized_text = normalize_stt_output(raw_text)
         return raw_text, normalized_text
 
@@ -234,7 +237,7 @@ class SmartHomePipeline:
         text        : str  = None,
         audio_array : np.ndarray = None,
         verbose     : bool = True,
-    ) -> str:
+    ) -> dict:
         """
         Xử lý một câu lệnh. Nhận text hoặc audio_array (không cần cả hai).
 
@@ -247,26 +250,31 @@ class SmartHomePipeline:
             verbose     : In chi tiết từng bước
 
         Returns:
-            Câu phản hồi tiếng Việt (text gốc từ ViT5, chưa normalize TTS)
+            dict với 2 key:
+                "reply"      : Câu phản hồi tiếng Việt từ ViT5
+                "transcript" : Text STT (nếu dùng audio) hoặc text gốc user gửi
         """
-        stt_raw        = None   # text thô từ Whisper (chưa normalize)
-        stt_normalized = None   # text sau normalize_stt_output
+        stt_raw        = None
+        stt_normalized = None
 
         # ── Bước 0: STT (nếu có audio) ────────────────────────────
         if audio_array is not None and self.stt_model is not None:
             try:
                 stt_raw, stt_normalized = self._transcribe(audio_array)
-                text = stt_normalized   # đây là input cho NLU
+                text = stt_normalized
             except RuntimeError as e:
                 if "CUDA out of memory" in str(e):
                     logger.error("❌ VRAM tràn! Hãy tắt Ollama hoặc giảm tải GPU.")
                 else:
                     logger.error(f"❌ Lỗi STT: {e}")
-                return ""
+                return {"reply": "", "transcript": ""}
 
         if not text:
             logger.warning("⚠️ Không có input (text rỗng hoặc STT thất bại).")
-            return ""
+            return {"reply": "", "transcript": ""}
+
+        # transcript trả về app = text sau STT normalize (hoặc text gốc nếu không có STT)
+        transcript = stt_normalized if stt_normalized is not None else text
 
         # ── Bước 1: NLU ───────────────────────────────────────────
         nlu_result = predict(text, self.nlu_model, self.sp, self.device, NLU_THRESHOLD)
@@ -291,7 +299,6 @@ class SmartHomePipeline:
         # ── Log chi tiết ──────────────────────────────────────────
         if verbose:
             print(f'\n{"=" * 60}')
-            # Nếu có STT thì hiện thêm dòng STT raw + normalized
             if stt_raw is not None:
                 print(f'  🎤 STT raw   : {stt_raw}')
                 if stt_raw != stt_normalized:
@@ -317,9 +324,10 @@ class SmartHomePipeline:
             print(f'  🔊 TTS      : {tts_status}')
             print(f'  🤖 Response : {response}')
             print(f'  📣 TTS text : {response_tts}')
+            print(f'  📝 Transcript: {transcript}')
             print(f'{"=" * 60}')
 
-        return response
+        return {"reply": response, "transcript": transcript}
 
     # ─────────────────────────────────────────────────────────────
 
@@ -387,10 +395,7 @@ def run_interactive(
 
     while True:
         try:
-            # ── Thu âm hoặc nhập text ──────────────────────────────
             if use_stt:
-                # Nhấn Enter → thu âm
-                # Gõ lệnh đặc biệt → xử lý ngay không cần thu âm
                 cmd = input('\n👤 [Enter=nói / hoặc gõ lệnh]: ').strip()
                 cmd_lower = cmd.lower()
 
@@ -409,31 +414,28 @@ def run_interactive(
                     print(f'🔇 Verbose mode: {"ON" if verbose else "OFF"}')
                     continue
                 if cmd_lower == 'text':
-                    # Nhập text thay vì thu âm cho lượt này
                     text_input = input('  ✏️  Nhập câu lệnh: ').strip()
                     if text_input:
-                        response = pipeline.process(text=text_input, verbose=verbose)
+                        result = pipeline.process(text=text_input, verbose=verbose)
                         if not verbose:
-                            print(f'🤖 Bot: {response}')
+                            print(f'🤖 Bot: {result["reply"]}')
                     continue
 
-                # cmd rỗng → nhấn Enter → thu âm
-                # cmd có nội dung nhưng không phải lệnh đặc biệt → xử lý như text
                 if cmd:
-                    response = pipeline.process(text=cmd, verbose=verbose)
+                    result = pipeline.process(text=cmd, verbose=verbose)
                     if not verbose:
-                        print(f'🤖 Bot: {response}')
+                        print(f'🤖 Bot: {result["reply"]}')
                 else:
                     try:
                         audio = pipeline._record_audio()
-                        response = pipeline.process(audio_array=audio, verbose=verbose)
-                        if not verbose and response:
-                            print(f'🤖 Bot: {response}')
+                        result = pipeline.process(audio_array=audio, verbose=verbose)
+                        if not verbose and result["reply"]:
+                            print(f'🎤 STT : {result["transcript"]}')
+                            print(f'🤖 Bot : {result["reply"]}')
                     except Exception as e:
                         logger.error(f"Lỗi thu âm/STT: {e}")
 
             else:
-                # Chế độ text thuần
                 text_input = input('\n👤 Bạn: ').strip()
                 if not text_input:
                     continue
@@ -454,9 +456,9 @@ def run_interactive(
                     print(f'🔇 Verbose mode: {"ON" if verbose else "OFF"}')
                     continue
 
-                response = pipeline.process(text=text_input, verbose=verbose)
+                result = pipeline.process(text=text_input, verbose=verbose)
                 if not verbose:
-                    print(f'🤖 Bot: {response}')
+                    print(f'🤖 Bot: {result["reply"]}')
 
         except (EOFError, KeyboardInterrupt):
             print('\nTạm biệt!')
@@ -471,47 +473,18 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='Smart Home Pipeline')
-    parser.add_argument(
-        '--api-url',
-        type=str,
-        default=None,
-        help='Base URL của API server (mặc định: http://localhost:5000)',
-    )
-    parser.add_argument(
-        '--text',
-        type=str,
-        default=None,
-        help='Chạy một câu lệnh text rồi thoát (bỏ qua STT)',
-    )
-    parser.add_argument(
-        '--no-stt',
-        action='store_true',
-        help='Tắt STT — chuyển sang chế độ nhập text bàn phím',
-    )
-    parser.add_argument(
-        '--no-tts',
-        action='store_true',
-        help='Tắt TTS (chỉ in text ra terminal)',
-    )
-    parser.add_argument(
-        '--stt-model',
-        type=str,
-        default=None,
-        help='Đường dẫn thư mục model PhoWhisper (mặc định: ./model/PhoWhisper_Base_Finetuned_V2)',
-    )
-    parser.add_argument(
-        '--duration',
-        type=int,
-        default=3,
-        help='Thời gian thu âm mỗi lượt tính bằng giây (mặc định: 3)',
-    )
+    parser.add_argument('--api-url', type=str, default=None)
+    parser.add_argument('--text', type=str, default=None)
+    parser.add_argument('--no-stt', action='store_true')
+    parser.add_argument('--no-tts', action='store_true')
+    parser.add_argument('--stt-model', type=str, default=None)
+    parser.add_argument('--duration', type=int, default=3)
     args = parser.parse_args()
 
     enable_stt = not args.no_stt
     enable_tts = not args.no_tts
 
     if args.text:
-        # Chạy 1 câu text rồi thoát — không cần STT
         pipeline = SmartHomePipeline(
             api_base_url  = args.api_url,
             enable_stt    = False,
