@@ -1,9 +1,11 @@
 """
 pipeline.py — Smart Home Pipeline hoàn chỉnh
-NLU (micro-BERT) → Dialog Manager v9 → API → NLG (ViT5)
+NLU (micro-BERT) → Dialog Manager v9 → API → NLG (ViT5) → Normalize → TTS (MeloTTS)
 
 Usage:
     python pipeline.py
+    python pipeline.py --no-tts          # tắt TTS
+    python pipeline.py --text "bật đèn"  # chạy 1 câu rồi thoát
 """
 
 import logging
@@ -21,12 +23,13 @@ from inference      import load_model, predict
 from api_client     import SmartHomeAPIClient
 from dialog_manager import SmartHomeDialogManager
 from vit5_generator import ViT5Generator
+from tts_speaker    import TTSSpeaker
+from tts_normalizer import normalize_for_tts       # ← THÊM
 from config         import NLU_THRESHOLD
 
 
 # ─────────────────────────────────────────────
 #  CLARIFY TEMPLATES  (không qua ViT5)
-#  Khớp với Cell 9 notebook
 # ─────────────────────────────────────────────
 CLARIFY_TEMPLATES = {
     'light': {
@@ -72,38 +75,47 @@ def _clarify_response(dm_output: str) -> str:
 
 class SmartHomePipeline:
     """
-    Pipeline hoàn chỉnh: Text → NLU → DM → API → NLG → Response
+    Pipeline hoàn chỉnh: Text → NLU → DM → API → NLG → Normalize → TTS
 
-    Attributes:
-        nlu_model:  micro-BERT NLU model
-        sp:         SentencePiece tokenizer
-        device:     torch device
-        dm:         Dialog Manager v9
-        nlg:        ViT5 Generator
-        api:        API Client
+    Args:
+        api_base_url: URL API server (mặc định localhost:5000)
+        enable_tts:   Bật/tắt TTS (mặc định True)
     """
 
-    def __init__(self, api_base_url: str = None):
+    def __init__(self, api_base_url: str = None, enable_tts: bool = True):
         logger.info("=" * 55)
         logger.info("  🏠 Khởi động Smart Home Pipeline")
         logger.info("=" * 55)
 
         # 1. Load NLU
-        logger.info("📦 [1/3] Loading micro-BERT NLU...")
+        logger.info("📦 [1/4] Loading micro-BERT NLU...")
         self.nlu_model, self.sp, self.device = load_model()
 
         # 2. Setup API + Dialog Manager
-        logger.info("🔌 [2/3] Khởi tạo API Client + Dialog Manager...")
-        kwargs = {'base_url': api_base_url} if api_base_url else {}
+        logger.info("🔌 [2/4] Khởi tạo API Client + Dialog Manager...")
+        kwargs   = {'base_url': api_base_url} if api_base_url else {}
         self.api = SmartHomeAPIClient(**kwargs)
         self.dm  = SmartHomeDialogManager(api_client=self.api)
 
         # 3. Load NLG
-        logger.info("📦 [3/3] Loading ViT5 NLG...")
+        logger.info("📦 [3/4] Loading ViT5 NLG...")
         self.nlg = ViT5Generator(device=self.device)
+
+        # 4. Load TTS
+        self.tts: TTSSpeaker | None = None
+        if enable_tts:
+            logger.info("🔊 [4/4] Loading MeloTTS...")
+            try:
+                self.tts = TTSSpeaker(device=str(self.device))
+            except Exception as e:
+                # TTS lỗi không làm sập pipeline — chỉ warn
+                logger.warning(f"⚠️ TTS không khởi động được, bỏ qua: {e}")
+        else:
+            logger.info("🔇 [4/4] TTS bị tắt (--no-tts)")
 
         logger.info("✅ Pipeline sẵn sàng!\n")
 
+    # ─────────────────────────────────────────────
     def process(self, text: str, verbose: bool = True) -> str:
         """
         Xử lý một câu lệnh đầu vào.
@@ -113,7 +125,7 @@ class SmartHomePipeline:
             verbose: In chi tiết từng bước
 
         Returns:
-            Câu phản hồi tiếng Việt
+            Câu phản hồi tiếng Việt (text gốc từ ViT5, chưa normalize)
         """
         # ── Bước 1: NLU ───────────────────────────────────────────
         nlu_result = predict(text, self.nlu_model, self.sp, self.device, NLU_THRESHOLD)
@@ -127,6 +139,15 @@ class SmartHomePipeline:
             response = _clarify_response(dm_output)
         else:
             response = self.nlg.generate(dm_output)
+
+        # ── Bước 3.5: Normalize text trước khi đưa vào TTS ───────
+        # response_tts: bản đã chuẩn hóa (°C→"độ C", %→"phần trăm", v.v.)
+        # response    : giữ nguyên text gốc để log & return cho caller
+        response_tts = normalize_for_tts(response)
+
+        # ── Bước 4: TTS (blocking) ────────────────────────────────
+        if self.tts is not None:
+            self.tts.speak(response_tts)
 
         # ── Log chi tiết ──────────────────────────────────────────
         if verbose:
@@ -148,7 +169,10 @@ class SmartHomePipeline:
             print(f'{"─" * 60}')
             if is_clarify:
                 print(f'  📢 [CLARIFY] Template response (không qua ViT5)')
+            tts_status = "✅ đã phát" if self.tts else "🔇 tắt"
+            print(f'  🔊 TTS      : {tts_status}')
             print(f'  🤖 Response : {response}')
+            print(f'  📣 TTS text : {response_tts}')   # ← log thêm bản đã normalize
             print(f'{"=" * 60}')
 
         return response
@@ -180,9 +204,9 @@ class SmartHomePipeline:
 #  INTERACTIVE LOOP
 # ─────────────────────────────────────────────
 
-def run_interactive(api_base_url: str = None):
+def run_interactive(api_base_url: str = None, enable_tts: bool = True):
     """Chạy pipeline ở chế độ tương tác."""
-    pipeline = SmartHomePipeline(api_base_url=api_base_url)
+    pipeline = SmartHomePipeline(api_base_url=api_base_url, enable_tts=enable_tts)
 
     print('\n' + '=' * 60)
     print('  🏠 SMART HOME ASSISTANT — CHẾ ĐỘ TƯƠNG TÁC')
@@ -251,12 +275,17 @@ if __name__ == '__main__':
         default=None,
         help='Chạy một câu lệnh rồi thoát (không cần interactive)',
     )
+    parser.add_argument(
+        '--no-tts',
+        action='store_true',
+        help='Tắt TTS (chỉ in text ra terminal)',
+    )
     args = parser.parse_args()
 
+    enable_tts = not args.no_tts
+
     if args.text:
-        # Chạy một câu rồi thoát
-        pipeline = SmartHomePipeline(api_base_url=args.api_url)
-        response = pipeline.process(args.text, verbose=True)
+        pipeline = SmartHomePipeline(api_base_url=args.api_url, enable_tts=enable_tts)
+        pipeline.process(args.text, verbose=True)
     else:
-        # Interactive mode
-        run_interactive(api_base_url=args.api_url)
+        run_interactive(api_base_url=args.api_url, enable_tts=enable_tts)

@@ -1,0 +1,6 @@
+from melo.api import TTS
+tts = TTS(language='VI', device='cuda',
+    config_path=r'E:\SV\Ki6\PBL5\PBL5_DoAnNhaThongMinh\agent\MeloTTS_Vietnamese-main\models\config.json',
+    ckpt_path=r'E:\SV\Ki6\PBL5\PBL5_DoAnNhaThongMinh\agent\MeloTTS_Vietnamese-main\models\G_463000.pth')
+p = next(tts.model.parameters())
+print('Device thực tế:', p.device)
