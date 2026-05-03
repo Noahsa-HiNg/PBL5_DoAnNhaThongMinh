@@ -44,7 +44,7 @@ class ViT5Generator:
 
         logger.info(f"🔄 Loading ViT5 tokenizer từ: {model_dir}")
         # legacy=True để tránh warning với sentencepiece tokenizer
-        self.tokenizer = T5Tokenizer.from_pretrained(model_dir, legacy=True)
+        self.tokenizer = T5Tokenizer.from_pretrained("VietAI/vit5-base", legacy=True)
         logger.info("✅ ViT5 tokenizer loaded")
 
         logger.info(f"🔄 Loading ViT5 model từ: {model_dir} (có thể mất 30-60s)...")

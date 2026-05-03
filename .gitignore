@@ -4,4 +4,5 @@ venv/
 .venv/
 __pycache__/
 agent/model
+agent/MeloTTS_Vietnamese-main
 hardware/node_esp32/.pio/
