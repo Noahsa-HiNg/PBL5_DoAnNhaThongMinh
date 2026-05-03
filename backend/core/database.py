@@ -68,6 +68,14 @@ def init_db():
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS conversations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender TEXT NOT NULL, 
+            message TEXT NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
     # 5. NẠP DỮ LIỆU PHÒNG (Gắn ID cứng để dễ map với thiết bị)
     cursor.execute("SELECT COUNT(*) FROM rooms")
     if cursor.fetchone()[0] == 0:
@@ -283,6 +291,30 @@ def get_sensor_history(device_id: int, limit: int = 50, from_time: str = None, t
         return [dict(row) for row in rows]
     except Exception as e:
         print(f"❌ Lỗi khi truy vấn lịch sử cảm biến: {e}")
+        return []
+    finally:
+        conn.close()
+
+def insert_conversation(sender: str, message: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT INTO conversations (sender, message) VALUES (?, ?)", (sender, message))
+        conn.commit()
+    except Exception as e:
+        print(f"❌ Lỗi khi lưu hội thoại: {e}")
+    finally:
+        conn.close()
+
+def get_all_conversations(limit: int = 100) -> list[dict]:
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM conversations ORDER BY timestamp ASC LIMIT ?", (limit,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except Exception as e:
+        print(f"❌ Lỗi khi truy vấn hội thoại: {e}")
         return []
     finally:
         conn.close()
