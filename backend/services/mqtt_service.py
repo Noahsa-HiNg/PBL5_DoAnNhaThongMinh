@@ -3,7 +3,7 @@ import json
 import asyncio
 from core.config import MQTT_BROKER, MQTT_PORT
 from core.database import insert_sensor_data
-from core.ws_manager import ws_manager
+from core.ws_manager import socketio_manager
 
 class MQTTManager:
     def __init__(self):
@@ -38,15 +38,10 @@ class MQTTManager:
                     insert_sensor_data(device_id, data["temp"], data.get("humi", 0))
                     print(f"📥 Cảm biến ID {device_id} (DHT11): {data['temp']}°C, {data['humi']}%")
 
-                    # Push xuống mobile qua WebSocket
-                    self._broadcast({
-                        "event": "sensor_update",
-                        "device_id": device_id,
-                        "type": "dht11",
-                        "data": {
-                            "temperature": data["temp"],
-                            "humidity": data.get("humi", 0)
-                        }
+                    # Push xuống mobile qua Socket.IO
+                    self._broadcast_sensor_update(device_id, "temperature", {
+                        "value": data["temp"],
+                        "unit": "C"
                     })
 
                 elif "light" in data:
@@ -54,28 +49,22 @@ class MQTTManager:
                     insert_sensor_data(device_id, data["light"], 0)
                     print(f"📥 Cảm biến ID {device_id} (Ánh sáng): {data['light']}")
 
-                    # Push xuống mobile qua WebSocket
-                    self._broadcast({
-                        "event": "sensor_update",
-                        "device_id": device_id,
-                        "type": "light_sensor",
-                        "data": {
-                            "light_value": data["light"]
-                        }
+                    # Push xuống mobile qua Socket.IO
+                    self._broadcast_sensor_update(device_id, "light_sensor", {
+                        "value": data["light"],
+                        "unit": "lux"  # Giả sử đơn vị là lux
                     })
 
             except Exception as e:
                 print(f"❌ Lỗi xử lý MQTT message: {e}")
 
-    def _broadcast(self, payload: dict):
+    def _broadcast_sensor_update(self, device_id: int, sensor_type: str, data: dict):
         """
-        Gửi dữ liệu xuống tất cả mobile đang kết nối WebSocket.
-        Dùng run_coroutine_threadsafe vì on_message chạy trong thread MQTT,
-        không phải asyncio event loop — không thể await trực tiếp.
+        Gửi cập nhật cảm biến qua Socket.IO.
         """
         if self._loop and self._loop.is_running():
             asyncio.run_coroutine_threadsafe(
-                ws_manager.broadcast(payload),
+                socketio_manager.broadcast_sensor_update(device_id, sensor_type, data),
                 self._loop
             )
 

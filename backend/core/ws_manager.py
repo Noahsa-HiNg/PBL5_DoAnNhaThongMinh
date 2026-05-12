@@ -1,39 +1,56 @@
-from fastapi import WebSocket
-from typing import List
-import json
+import socketio
 
-class WebSocketManager:
+# Cấu hình Socket.IO Server
+sio = socketio.AsyncServer(
+    async_mode='asgi',
+    cors_allowed_origins='*',  # Cho phép tất cả origins cho dev
+    logger=True,
+    engineio_logger=True
+)
+
+class SocketIOManager:
     """
-    Quản lý danh sách tất cả mobile đang kết nối WebSocket.
-    Dùng chung toàn dự án — import ws_manager từ file này.
+    Quản lý Socket.IO connections và broadcast.
+    Dùng chung toàn dự án — import sio từ file này.
     """
-    def __init__(self):
-        self.active_connections: List[WebSocket] = []
 
-    async def connect(self, websocket: WebSocket):
-        """Chấp nhận kết nối mới từ mobile"""
-        await websocket.accept()
-        self.active_connections.append(websocket)
-        print(f"📱 Mobile kết nối WebSocket. Tổng: {len(self.active_connections)}")
-
-    def disconnect(self, websocket: WebSocket):
-        """Xóa mobile khỏi danh sách khi disconnect"""
-        self.active_connections.remove(websocket)
-        print(f"📴 Mobile ngắt WebSocket. Còn lại: {len(self.active_connections)}")
-
-    async def broadcast(self, data: dict):
+    async def broadcast_sensor_update(self, device_id: int, sensor_type: str, data: dict):
         """
-        Gửi JSON xuống TẤT CẢ mobile đang kết nối.
-        Tự động xóa client nếu đã ngắt kết nối.
+        Broadcast cập nhật cảm biến theo format yêu cầu.
         """
-        disconnected = []
-        for connection in self.active_connections:
-            try:
-                await connection.send_text(json.dumps(data, ensure_ascii=False))
-            except Exception:
-                disconnected.append(connection)
-        for conn in disconnected:
-            self.active_connections.remove(conn)
+        payload = {
+            "device_id": device_id,
+            "type": sensor_type,
+            "data": data
+        }
+        await sio.emit("sensor_update", payload)
+        print(f"📤 Broadcast sensor_update: {payload}")
 
-# Singleton — dùng chung toàn dự án
-ws_manager = WebSocketManager()
+    async def broadcast_device_update(self, device_id: int, device_type: str, name: str, data: dict):
+        """
+        Broadcast cập nhật trạng thái thiết bị.
+        """
+        payload = {
+            "device_id": device_id,
+            "type": device_type,
+            "name": name,
+            "data": data
+        }
+        await sio.emit("device_update", payload)
+        print(f"📤 Broadcast device_update: {payload}")
+
+    async def broadcast_alarm_triggered(self, label: str, time: str):
+        """
+        Broadcast kích hoạt báo thức.
+        """
+        payload = {
+            "data": {
+                "label": label,
+                "time": time
+            }
+        }
+        await sio.emit("alarm_triggered", payload)
+        print(f"📤 Broadcast alarm_triggered: {payload}")
+
+# Singleton
+socketio_manager = SocketIOManager()

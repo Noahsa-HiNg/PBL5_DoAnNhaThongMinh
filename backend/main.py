@@ -1,9 +1,10 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import uvicorn
 import asyncio
-from core.ws_manager import ws_manager
+import socketio
+from core.ws_manager import sio
 from core.database import init_db
 from core.config import SERVER_PORT
 from services.mqtt_service import mqtt_service
@@ -17,8 +18,8 @@ from routers import (
     alarm_routers,
     bulk_routers,
     weather_routers,
-    context_routers,
-    voice_routers,
+   context_routers,
+   voice_routers,
 )
 
 @asynccontextmanager
@@ -33,7 +34,7 @@ async def lifespan(app: FastAPI):
     mqtt_service.start()
 
     # Khởi động AI Pipeline (NLU + DM + ViT5)
-    voice_routers.init_pipeline()
+#    voice_routers.init_pipeline()
 
     # Chạy Background Workers
     asyncio.create_task(alarm_worker())
@@ -62,6 +63,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount Socket.IO app
+app.mount("/", socketio.ASGIApp(sio, other_asgi_app=app))
+
 # --- Đăng ký tất cả Routers ---
 app.include_router(system_routers.router)      # /api/health, /api/time
 app.include_router(status_routers.router)       # /api/status/...
@@ -79,20 +83,14 @@ def root():
     return {"message": "✅ PBL5 Smart Home Server v2.0 đang hoạt động!"}
 
 
-# --- WebSocket — Push realtime xuống Mobile ---
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    """
-    Mobile kết nối vào đây để nhận realtime update (sensor, thiết bị).
-    URL kết nối: ws://<IP_SERVER>:8000/ws
-    """
-    await ws_manager.connect(websocket)
-    try:
-        while True:
-            # Giữ kết nối sống — chờ mobile gửi ping hoặc bất kỳ text nào
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        ws_manager.disconnect(websocket)
+# --- Socket.IO Events ---
+@sio.event
+async def connect(sid, environ):
+    print(f"📱 Client {sid} connected to Socket.IO")
+
+@sio.event
+async def disconnect(sid):
+    print(f"📴 Client {sid} disconnected from Socket.IO")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=SERVER_PORT, reload=True)
