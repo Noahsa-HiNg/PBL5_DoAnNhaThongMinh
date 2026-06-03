@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime
 from core.database import get_db_connection, delete_old_history
 from services.mqtt_service import mqtt_service
+from core.ws_manager import socketio_manager
 import json
 
 
@@ -14,9 +15,9 @@ async def alarm_worker():
             cursor = conn.cursor()
             
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # JOIN với bảng devices để lấy type của thiết bị
+            # JOIN với bảng devices để lấy type và name của thiết bị
             cursor.execute(
-                """SELECT s.*, d.type AS device_type
+                """SELECT s.*, d.type AS device_type, d.name AS device_name
                    FROM schedules s
                    LEFT JOIN devices d ON s.device_id = d.id
                    WHERE s.status = 'PENDING' AND s.trigger_time <= ?""",
@@ -29,6 +30,7 @@ async def alarm_worker():
                 did         = job['device_id']
                 cmd         = job['command']
                 device_type = job['device_type']
+                device_name = job['device_name'] or f"Thiết bị {did}"
 
                 if device_type == "fan":
                     # ──────────────────────────────────────────────────────────
@@ -46,11 +48,14 @@ async def alarm_worker():
                     mqtt_service.publish_command(did, payload)
                     # Lưu DB dưới dạng số chuỗi "0"/"1"/"2"/"3"
                     conn.execute("UPDATE devices SET status = ? WHERE id = ?", (str(speed), did))
+                    await socketio_manager.broadcast_device_update(did, "fan", device_name, {"state": "on", "speed": speed})
                     print(f"⏰ KÍCH HOẠT (Quạt): Thiết bị {did} → speed={speed}")
                 else:
                     # Đèn / buzzer / cửa → gửi chuỗi thô "ON"/"OFF"/"LOCK"/...
                     mqtt_service.publish_command(did, cmd.upper())
                     conn.execute("UPDATE devices SET status = ? WHERE id = ?", (cmd.lower(), did))
+                    state = "on" if cmd.lower() == "on" else "off"
+                    await socketio_manager.broadcast_device_update(did, device_type, device_name, {"state": state})
                     print(f"⏰ KÍCH HOẠT ({device_type}): Thiết bị {did} → Lệnh: {cmd}")
 
                 conn.execute("UPDATE schedules SET status = 'DONE' WHERE schedule_id = ?", (sid,))
@@ -80,22 +85,31 @@ async def buzzer_alarm_worker():
             alarms = cursor.fetchall()
             
             for alarm in alarms:
+                # Broadcast alarm_triggered
+                await socketio_manager.broadcast_alarm_triggered(
+                    alarm['label'] or alarm['alarm_id'],
+                    alarm['time']
+                )
+                
                 # ── Bật buzzer, đèn, quạt ──
                 # Bật loa
                 mqtt_service.publish_command(12, "ON")
                 conn.execute("UPDATE devices SET status = 'on' WHERE id = 12")
+                await socketio_manager.broadcast_device_update(12, "buzzer", "Loa Báo Thức", {"state": "on"})
                 
                 # Bật tất cả đèn
-                cursor.execute("SELECT id FROM devices WHERE type = 'light'")
+                cursor.execute("SELECT id, name FROM devices WHERE type = 'light'")
                 for light_row in cursor.fetchall():
                     mqtt_service.publish_command(light_row["id"], "ON")
                     conn.execute("UPDATE devices SET status = 'on' WHERE id = ?", (light_row["id"],))
+                    await socketio_manager.broadcast_device_update(light_row["id"], "light", light_row["name"], {"state": "on"})
 
                 # Bật tất cả quạt
-                cursor.execute("SELECT id FROM devices WHERE type = 'fan'")
+                cursor.execute("SELECT id, name FROM devices WHERE type = 'fan'")
                 for fan_row in cursor.fetchall():
                     mqtt_service.publish_command(fan_row["id"], json.dumps({"speed": 2}))
                     conn.execute("UPDATE devices SET status = '2' WHERE id = ?", (fan_row["id"],))
+                    await socketio_manager.broadcast_device_update(fan_row["id"], "fan", fan_row["name"], {"state": "on", "speed": 2})
 
                 print(f"🔔 BÁO THỨC: {alarm['label'] or alarm['alarm_id']} lúc {alarm['time']} - Đã bật Loa, Quạt, Đèn")
 

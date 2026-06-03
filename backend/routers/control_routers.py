@@ -1,12 +1,17 @@
 from fastapi import APIRouter, HTTPException
 from core.database import get_db_connection, get_device_by_id, update_device_status
 from services.mqtt_service import mqtt_service
+from core.ws_manager import socketio_manager
 from models.schemas import (
     LightControlRequest, FanControlRequest, FanAdjustRequest,
     DoorControlRequest, BuzzerControlRequest, AutoModeRequest
 )
 import json
 from datetime import datetime
+
+async def broadcast_device_update(device_id: int, device_type: str, name: str, data: dict):
+    """Helper function to broadcast device updates via Socket.IO"""
+    await socketio_manager.broadcast_device_update(device_id, device_type, name, data)
 
 router = APIRouter(prefix="/api/control", tags=["Điều khiển thiết bị"])
 
@@ -16,7 +21,7 @@ router = APIRouter(prefix="/api/control", tags=["Điều khiển thiết bị"])
 
 # --- Route cố định "/light/all" phải ĐẶT TRƯỚC "/light/{device_id}" ---
 @router.post("/light/all")
-def control_all_lights(request: LightControlRequest):
+async def control_all_lights(request: LightControlRequest):
     """Bật/tắt tất cả đèn"""
     state = request.state.upper()  # "ON" hoặc "OFF"
     if state not in ["ON", "OFF"]:
@@ -38,6 +43,7 @@ def control_all_lights(request: LightControlRequest):
                 "name": device["name"],
                 "state": state.lower()
             })
+            await broadcast_device_update(device_id, "light", device["name"], {"state": state.lower()})
     
     return {
         "status": "success",
