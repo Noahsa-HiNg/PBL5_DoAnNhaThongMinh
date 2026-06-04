@@ -142,6 +142,7 @@ CONTEXT_SUGGEST = {
     'context_wake':   [('light',           'bedroom',     'on')],
     'context_arrive': [('light',           'living_room', 'on')],
     'context_leave':  [('all',             None,          'off')],
+    'context_dark':   [('light', 'living_room', 'on')],
 }
 INTENT_SIGNAL_MAP = {
     'context_hot':    'signal_hot',
@@ -151,6 +152,7 @@ INTENT_SIGNAL_MAP = {
     'context_wake':   'signal_wake',
     'context_arrive': 'signal_arrive',
     'context_leave':  'signal_leave',
+    'context_dark':   'signal_dark',
 }
 
 
@@ -432,9 +434,11 @@ class SmartHomeDialogManager:
             return self._handle_alarm(slots, state, mode='set')
         elif intent == 'alarm_cancel':
             return self._handle_cancel('alarm', state)
+        # MỚI
         elif intent in ('context_hot', 'context_cold', 'context_stuffy',
                         'context_sleep', 'context_wake',
-                        'context_arrive', 'context_leave'):
+                        'context_arrive', 'context_leave',
+                        'context_dark'):
             return self._handle_context(intent, slots, state)
         elif intent == 'confirm_yes':
             return self._handle_confirm(slots, state, raw_text=raw_text)
