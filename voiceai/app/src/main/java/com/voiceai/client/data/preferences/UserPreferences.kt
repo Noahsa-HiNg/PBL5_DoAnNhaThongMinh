@@ -9,10 +9,11 @@ class UserPreferences(context: Context) {
     companion object {
         private const val KEY_SERVER_IP = "server_ip"
         private const val KEY_SERVER_PORT = "server_port"
+        const val DEFAULT_MAIN_DOOR_ID = 11
     }
 
     var serverPort: Int
-        get() = prefs.getInt(KEY_SERVER_PORT, 5000)
+        get() = prefs.getInt(KEY_SERVER_PORT, 8000)
         set(value) {
             prefs.edit { putInt(KEY_SERVER_PORT, value) }
         }

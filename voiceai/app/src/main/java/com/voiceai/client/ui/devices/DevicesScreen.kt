@@ -57,6 +57,30 @@ fun DevicesScreen(viewModel: DevicesViewModel) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            // ── Banner offline ──────────────────────────
+            if (uiState.isOffline && uiState.lastSyncTime > 0) {
+                val timeStr = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                    .format(java.util.Date(uiState.lastSyncTime))
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.CloudOff, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+                        Text(
+                            text = "Dữ liệu offline — cập nhật lúc $timeStr",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
+
             // ── Section Đèn ──────────────────────────────
             if (uiState.lights.isNotEmpty()) {
                 DeviceSection(

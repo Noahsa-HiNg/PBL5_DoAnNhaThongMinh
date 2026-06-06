@@ -168,7 +168,12 @@ class ChatViewModel(
     private var isRecordingCancelled = false
 
     fun stopRecording() {
-        isRecordingCancelled = false
+        audioRepository.stopRecording()
+        _uiState.update { it.copy(isRecording = false) }
+    }
+
+    fun cancelRecording() {
+        isRecordingCancelled = true
         audioRepository.stopRecording()
         _uiState.update { it.copy(isRecording = false) }
     }

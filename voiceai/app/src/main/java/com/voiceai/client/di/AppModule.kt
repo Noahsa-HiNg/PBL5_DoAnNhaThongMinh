@@ -9,6 +9,9 @@ import com.voiceai.client.data.audio.AudioRepository
 import com.voiceai.client.data.notification.NotificationHelper
 import com.voiceai.client.data.preferences.UserPreferences
 import com.voiceai.client.data.network.ChatRepository
+import com.voiceai.client.data.local.AppDatabase
+import com.voiceai.client.data.local.LocalDeviceRepository
+import androidx.room.Room
 import com.voiceai.client.ui.chat.ChatViewModel
 import com.voiceai.client.ui.devices.DevicesViewModel
 import com.voiceai.client.ui.alarms.AlarmsViewModel
@@ -83,8 +86,20 @@ val appModule = module {
     single { AudioRepository(get()) }
     single { ChatRepository(get()) }
 
+    // ===== Room Database =====
+    single {
+        Room.databaseBuilder(get(), AppDatabase::class.java, "voiceai.db")
+            .fallbackToDestructiveMigration()
+            .build()
+    }
+    single { get<AppDatabase>().deviceDao() }
+    single { get<AppDatabase>().sensorReadingDao() }
+    single { get<AppDatabase>().conversationDao() }
+    single { get<AppDatabase>().automationRuleDao() }
+    single { LocalDeviceRepository(get()) }
+
     viewModel { ChatViewModel(get(), get(), get(), get()) }
-    viewModel { DevicesViewModel(get(), get()) }
+    viewModel { DevicesViewModel(get(), get(), get(), get()) }
     viewModel { AlarmsViewModel(get(), get(), get()) }
     viewModel { SettingsViewModel(get(), get(), get()) }
 }

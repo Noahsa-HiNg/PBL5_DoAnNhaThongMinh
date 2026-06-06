@@ -19,6 +19,6 @@ class ExampleInstrumentedTest {
     fun useAppContext() {
         // Context of the app under test.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.voiceai", appContext.packageName)
+        assertEquals("com.voiceai.v2", appContext.packageName)
     }
 }
