@@ -15,7 +15,7 @@ import logging
 import torch
 import numpy as np
 import os
-os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
 # ── Cấu hình logging ───────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,

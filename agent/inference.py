@@ -20,7 +20,7 @@ INTENT_LABELS = [
     'schedule_set', 'schedule_cancel',
     'alarm_set', 'alarm_cancel',
     'context_arrive', 'context_leave', 'context_sleep', 'context_wake',
-    'context_hot', 'context_cold', 'context_stuffy',
+    'context_hot', 'context_cold', 'context_stuffy','context_dark',
     'confirm_yes', 'confirm_no',
     'chitchat', 'unsupported',
 ]
