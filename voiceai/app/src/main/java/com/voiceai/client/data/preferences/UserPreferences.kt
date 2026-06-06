@@ -9,8 +9,15 @@ class UserPreferences(context: Context) {
     companion object {
         private const val KEY_SERVER_IP = "server_ip"
         private const val KEY_SERVER_PORT = "server_port"
+        private const val KEY_TTS_ENABLED = "tts_enabled"
         const val DEFAULT_MAIN_DOOR_ID = 11
     }
+
+    var ttsEnabled: Boolean
+        get() = prefs.getBoolean(KEY_TTS_ENABLED, false)
+        set(value) {
+            prefs.edit { putBoolean(KEY_TTS_ENABLED, value) }
+        }
 
     var serverPort: Int
         get() = prefs.getInt(KEY_SERVER_PORT, 8000)

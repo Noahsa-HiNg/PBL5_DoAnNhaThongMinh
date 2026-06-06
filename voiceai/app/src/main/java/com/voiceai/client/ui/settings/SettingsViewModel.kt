@@ -17,7 +17,8 @@ data class SettingsUiState(
     val isSaved: Boolean           = false,   // trigger snackbar "Đã lưu"
     val isCheckingHealth: Boolean  = false,   // loading indicator nút Kiểm tra
     val healthStatus: HealthStatus? = null,   // badge kết quả health check
-    val error: String?             = null     // trigger snackbar lỗi
+    val error: String?             = null,    // trigger snackbar lỗi
+    val isTtsEnabled: Boolean      = false
 )
 
 data class HealthStatus(
@@ -36,7 +37,8 @@ class SettingsViewModel(
             currentIp = userPreferences.serverIp,
             currentPort = userPreferences.serverPort,
             inputIp   = userPreferences.serverIp,
-            inputPort = userPreferences.serverPort.toString()
+            inputPort = userPreferences.serverPort.toString(),
+            isTtsEnabled = userPreferences.ttsEnabled
         )
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -57,6 +59,11 @@ class SettingsViewModel(
         userPreferences.serverPort = newPort
         _uiState.update { it.copy(currentIp = newIp, currentPort = newPort, isSaved = true, healthStatus = null) }
         socketRepository.reconnect()
+    }
+
+    fun toggleTts(enabled: Boolean) {
+        userPreferences.ttsEnabled = enabled
+        _uiState.update { it.copy(isTtsEnabled = enabled) }
     }
 
     fun checkHealth() {

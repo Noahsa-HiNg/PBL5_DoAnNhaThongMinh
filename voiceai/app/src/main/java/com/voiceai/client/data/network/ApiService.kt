@@ -128,4 +128,25 @@ interface ApiService {
 
     @GET("api/voice/conversations")
     suspend fun getConversations(@Query("limit") limit: Int = 100): ConversationHistoryResponse
+
+    // ════════════════════════════════════════════
+    //  SENSOR HISTORY
+    // ════════════════════════════════════════════
+
+    @GET("api/sensors/{id}/history")
+    suspend fun getSensorHistory(
+        @Path("id") sensorId: Int,
+        @Query("limit") limit: Int = 50
+    ): SensorHistoryResponse
 }
+
+data class SensorHistoryResponse(
+    val status: String,
+    val data: List<SensorReadingDto>
+)
+
+data class SensorReadingDto(
+    val value1: Double?,
+    val value2: Double?,
+    val timestamp: String
+)

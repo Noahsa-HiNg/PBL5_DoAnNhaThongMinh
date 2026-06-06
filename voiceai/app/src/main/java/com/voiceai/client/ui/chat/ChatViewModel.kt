@@ -34,7 +34,8 @@ class ChatViewModel(
     private val chatRepository: ChatRepository,
     private val socketRepository: SocketRepository,
     private val audioRepository: AudioRepository,
-    private val userPreferences: UserPreferences
+    private val userPreferences: UserPreferences,
+    private val ttsHelper: com.voiceai.client.data.audio.TtsHelper
 ) : ViewModel() {
 
     companion object {
@@ -122,6 +123,10 @@ class ChatViewModel(
                     timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
                 )
                 _uiState.update { it.copy(messages = it.messages + systemResponse, isSendingMessage = false, error = null) }
+                
+                if (userPreferences.ttsEnabled) {
+                    ttsHelper.speak(systemResponseText)
+                }
             }.onFailure { throwable ->
                 val errorMessage = throwable.message ?: "Unknown error"
                 _uiState.update { it.copy(error = errorMessage, isSendingMessage = false) }
@@ -213,6 +218,10 @@ class ChatViewModel(
                         isSendingMessage = false,
                         error = null
                     )
+                }
+
+                if (userPreferences.ttsEnabled) {
+                    ttsHelper.speak(systemResponseText)
                 }
             }.onFailure { throwable ->
                 val errorMessage = throwable.message ?: "Lỗi gửi âm thanh"

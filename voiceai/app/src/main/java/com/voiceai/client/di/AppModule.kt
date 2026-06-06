@@ -6,6 +6,7 @@ import com.voiceai.client.data.network.DeviceRepository
 import com.voiceai.client.data.network.AlarmRepository
 import com.voiceai.client.data.network.SocketRepository
 import com.voiceai.client.data.audio.AudioRepository
+import com.voiceai.client.data.audio.TtsHelper
 import com.voiceai.client.data.notification.NotificationHelper
 import com.voiceai.client.data.preferences.UserPreferences
 import com.voiceai.client.data.network.ChatRepository
@@ -85,6 +86,7 @@ val appModule = module {
     single { AlarmRepository(get()) }
     single { AudioRepository(get()) }
     single { ChatRepository(get()) }
+    single { TtsHelper(get()) }
 
     // ===== Room Database =====
     single {
@@ -98,8 +100,9 @@ val appModule = module {
     single { get<AppDatabase>().automationRuleDao() }
     single { LocalDeviceRepository(get()) }
 
-    viewModel { ChatViewModel(get(), get(), get(), get()) }
+    viewModel { ChatViewModel(get(), get(), get(), get(), get()) }
     viewModel { DevicesViewModel(get(), get(), get(), get()) }
     viewModel { AlarmsViewModel(get(), get(), get()) }
     viewModel { SettingsViewModel(get(), get(), get()) }
+    viewModel { com.voiceai.client.ui.dashboard.SensorDashboardViewModel(get(), get(), get()) }
 }

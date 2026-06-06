@@ -32,11 +32,12 @@ sealed class NavTab(
 ) {
     object Chat     : NavTab("chat",     "Chat",     Icons.Filled.Chat,     Icons.Outlined.Chat)
     object Devices  : NavTab("devices",  "Thiết bị", Icons.Filled.Devices,  Icons.Outlined.Devices)
+    object Dashboard : NavTab("dashboard", "Dashboard", Icons.Filled.BarChart, Icons.Outlined.BarChart)
     object Alarms   : NavTab("alarms",   "Báo thức", Icons.Filled.Alarm,    Icons.Outlined.Alarm)
     object Settings : NavTab("settings", "Cài đặt",  Icons.Filled.Settings, Icons.Outlined.Settings)
 }
 
-private val navTabs = listOf(NavTab.Chat, NavTab.Devices, NavTab.Alarms, NavTab.Settings)
+private val navTabs = listOf(NavTab.Chat, NavTab.Devices, NavTab.Dashboard, NavTab.Alarms, NavTab.Settings)
 
 @Composable
 fun MainScreen() {
@@ -45,6 +46,7 @@ fun MainScreen() {
     // ViewModels tạo ở đây để giữ state khi chuyển tab
     val chatViewModel: ChatViewModel         = koinViewModel()
     val devicesViewModel: DevicesViewModel   = koinViewModel()
+    val dashboardViewModel: com.voiceai.client.ui.dashboard.SensorDashboardViewModel = koinViewModel()
     val alarmsViewModel: AlarmsViewModel     = koinViewModel()
     val settingsViewModel: SettingsViewModel = koinViewModel()
 
@@ -91,6 +93,9 @@ fun MainScreen() {
             }
             composable(NavTab.Devices.route) {
                 DevicesScreen(viewModel = devicesViewModel)
+            }
+            composable(NavTab.Dashboard.route) {
+                com.voiceai.client.ui.dashboard.SensorDashboardScreen(viewModel = dashboardViewModel)
             }
             composable(NavTab.Alarms.route) {
                 AlarmsScreen(viewModel = alarmsViewModel)

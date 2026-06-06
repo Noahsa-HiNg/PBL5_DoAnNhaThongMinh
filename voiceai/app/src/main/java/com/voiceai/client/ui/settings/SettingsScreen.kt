@@ -162,6 +162,32 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 }
             }
 
+            // ── Section: Phản hồi giọng nói ─────────────────────────────
+            SettingsSection(title = "Giọng nói") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Đọc phản hồi bằng tiếng Việt",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "Sử dụng Text-to-Speech để đọc câu trả lời của trợ lý ảo",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    Switch(
+                        checked = uiState.isTtsEnabled,
+                        onCheckedChange = { viewModel.toggleTts(it) }
+                    )
+                }
+            }
+
             // ── Section: Về ứng dụng ────────────────────────────────
             SettingsSection(title = "Về ứng dụng") {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

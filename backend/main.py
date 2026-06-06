@@ -18,8 +18,8 @@ from routers import (
     alarm_routers,
     bulk_routers,
     weather_routers,
-   context_routers,
-   voice_routers,
+    context_routers,
+    voice_routers,
 )
 
 @asynccontextmanager
