@@ -1,22 +1,22 @@
 import socketio
 
-# Cấu hình Socket.IO Server — Engine.IO v3 (tương thích Client v2.x)
+# Cau hinh Socket.IO Server -- Engine.IO v3 (tuong thich Client v2.x)
 sio = socketio.AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins='*',  # Cho phép tất cả origins cho dev
+    cors_allowed_origins='*',  # Cho phep tat ca origins cho dev
     logger=True,
     engineio_logger=True
 )
 
 class SocketIOManager:
     """
-    Quản lý Socket.IO connections và broadcast.
-    Dùng chung toàn dự án — import sio từ file này.
+    Quan ly Socket.IO connections va broadcast.
+    Dung chung toan du an -- import sio tu file nay.
     """
 
     async def broadcast_sensor_update(self, device_id: int, value1: float, value2: float | None, unit1: str, unit2: str | None):
         """
-        Broadcast cập nhật cảm biến theo format yêu cầu của Android App.
+        Broadcast cap nhat cam bien theo format yeu cau cua Android App.
 
         Payload:
             {"device_id": int, "type": "sensor", "data": {"value1": float, "value2": float/null, "unit1": str, "unit2": str/null}}
@@ -33,11 +33,11 @@ class SocketIOManager:
             "data": data
         }
         await sio.emit("sensor_update", payload)
-        print(f"📤 Broadcast sensor_update: {payload}")
+        print(f"[SIO] Broadcast sensor_update: {payload}")
 
     async def broadcast_device_update(self, device_id: int, device_type: str, name: str, data: dict):
         """
-        Broadcast cập nhật trạng thái thiết bị.
+        Broadcast cap nhat trang thai thiet bi.
 
         Payload:
             {"device_id": int, "type": str, "name": str, "data": {"state": "on"/"off", ...}}
@@ -49,11 +49,11 @@ class SocketIOManager:
             "data": data
         }
         await sio.emit("device_update", payload)
-        print(f"📤 Broadcast device_update: {payload}")
+        print(f"[SIO] Broadcast device_update: {payload}")
 
     async def broadcast_alarm_triggered(self, label: str, time: str):
         """
-        Broadcast kích hoạt báo thức.
+        Broadcast kich hoat bao thuc.
 
         Payload:
             {"label": str, "time": str}
@@ -63,7 +63,7 @@ class SocketIOManager:
             "time": time
         }
         await sio.emit("alarm_triggered", payload)
-        print(f"📤 Broadcast alarm_triggered: {payload}")
+        print(f"[SIO] Broadcast alarm_triggered: {payload}")
 
 # Singleton
 socketio_manager = SocketIOManager()
