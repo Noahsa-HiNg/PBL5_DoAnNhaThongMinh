@@ -4,7 +4,6 @@ import android.util.Log
 import com.voiceai.client.data.preferences.UserPreferences
 import io.socket.client.IO
 import io.socket.client.Socket
-import io.socket.engineio.client.transports.WebSocket
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -50,8 +49,8 @@ class SocketRepository(private val userPreferences: UserPreferences) {
                 reconnection = true
                 reconnectionAttempts = Int.MAX_VALUE
                 reconnectionDelay = 2000
-                // Chỉ ưu tiên dùng websocket để tối ưu hiệu năng
-                transports = arrayOf(WebSocket.NAME)
+                // Mặc định cho phép cả polling và websocket để tăng tính tương thích
+                // Client sẽ tự động nâng cấp lên websocket nếu server hỗ trợ
             }
 
             mSocket = IO.socket(socketUrl, options)

@@ -174,7 +174,9 @@ underthesea_core==1.0.4
 Unidecode==1.3.7
 uritemplate==4.2.0
 urllib3==2.6.3
-uvicorn==0.46.0
+uvicorn[standard]==0.46.0
+python-socketio==4.6.1
+python-engineio==3.13.2
 wasabi==0.10.1
 Werkzeug==3.1.8
 win32_setctime==1.2.0

@@ -39,10 +39,13 @@ class MQTTManager:
                     print(f"📥 Cảm biến ID {device_id} (DHT11): {data['temp']}°C, {data['humi']}%")
 
                     # Push xuống mobile qua Socket.IO
-                    self._broadcast_sensor_update(device_id, "temperature", {
-                        "value": data["temp"],
-                        "unit": "C"
-                    })
+                    self._broadcast_sensor_update(
+                        device_id,
+                        value1=float(data["temp"]),
+                        value2=float(data.get("humi", 0)) if data.get("humi") is not None else None,
+                        unit1="°C",
+                        unit2="%"
+                    )
 
                 elif "light" in data:
                     # ── Cảm biến Ánh sáng ──
@@ -50,21 +53,25 @@ class MQTTManager:
                     print(f"📥 Cảm biến ID {device_id} (Ánh sáng): {data['light']}")
 
                     # Push xuống mobile qua Socket.IO
-                    self._broadcast_sensor_update(device_id, "light_sensor", {
-                        "value": data["light"],
-                        "unit": "lux"  # Giả sử đơn vị là lux
-                    })
+                    self._broadcast_sensor_update(
+                        device_id,
+                        value1=float(data["light"]),
+                        value2=None,
+                        unit1="lux",
+                        unit2=None
+                    )
 
             except Exception as e:
                 print(f"❌ Lỗi xử lý MQTT message: {e}")
 
-    def _broadcast_sensor_update(self, device_id: int, sensor_type: str, data: dict):
+    def _broadcast_sensor_update(self, device_id: int, value1: float, value2: float | None, unit1: str, unit2: str | None):
         """
         Gửi cập nhật cảm biến qua Socket.IO.
+        Signature khớp với SocketIOManager.broadcast_sensor_update()
         """
         if self._loop and self._loop.is_running():
             asyncio.run_coroutine_threadsafe(
-                socketio_manager.broadcast_sensor_update(device_id, sensor_type, data),
+                socketio_manager.broadcast_sensor_update(device_id, value1, value2, unit1, unit2),
                 self._loop
             )
 
