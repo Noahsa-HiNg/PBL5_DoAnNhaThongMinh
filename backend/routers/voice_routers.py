@@ -229,11 +229,13 @@ async def rpi_voice(file: UploadFile = File(...)):
         finally:
             Path(output_wav_path).unlink(missing_ok=True)
 
+    import base64
     return StreamingResponse(
         _iter_wav(),
         media_type="audio/wav",
         headers={
-            "X-Transcript": result.get("transcript", ""),
-            "X-Reply":      reply_text,
+            # Encode base64 vì HTTP header chỉ hỗ trợ latin-1
+            "X-Transcript": base64.b64encode(result.get("transcript", "").encode("utf-8")).decode("ascii"),
+            "X-Reply":      base64.b64encode(reply_text.encode("utf-8")).decode("ascii"),
         },
     )

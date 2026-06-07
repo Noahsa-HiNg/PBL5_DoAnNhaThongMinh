@@ -4,8 +4,8 @@ import socketio
 sio = socketio.AsyncServer(
     async_mode='asgi',
     cors_allowed_origins='*',  # Cho phep tat ca origins cho dev
-    logger=True,
-    engineio_logger=True
+    logger=False,
+    engineio_logger=False,  # Tat log chi tiet cua Engine.IO de giam do am cua console
 )
 
 class SocketIOManager:
@@ -33,7 +33,6 @@ class SocketIOManager:
             "data": data
         }
         await sio.emit("sensor_update", payload)
-        print(f"[SIO] Broadcast sensor_update: {payload}")
 
     async def broadcast_device_update(self, device_id: int, device_type: str, name: str, data: dict):
         """
@@ -49,7 +48,6 @@ class SocketIOManager:
             "data": data
         }
         await sio.emit("device_update", payload)
-        print(f"[SIO] Broadcast device_update: {payload}")
 
     async def broadcast_alarm_triggered(self, label: str, time: str):
         """
@@ -63,7 +61,6 @@ class SocketIOManager:
             "time": time
         }
         await sio.emit("alarm_triggered", payload)
-        print(f"[SIO] Broadcast alarm_triggered: {payload}")
 
 # Singleton
 socketio_manager = SocketIOManager()
