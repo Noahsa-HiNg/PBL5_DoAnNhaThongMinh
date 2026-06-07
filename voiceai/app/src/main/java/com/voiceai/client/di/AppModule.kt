@@ -103,5 +103,5 @@ val appModule = module {
     viewModel { DevicesViewModel(get(), get(), get(), get()) }
     viewModel { com.voiceai.client.ui.alarms.SchedulesViewModel(get(), get()) }
     viewModel { SettingsViewModel(get(), get(), get()) }
-    viewModel { com.voiceai.client.ui.dashboard.SensorDashboardViewModel(get(), get(), get()) }
+    viewModel { com.voiceai.client.ui.dashboard.SensorDashboardViewModel(get(), get(), get(), get()) }
 }
