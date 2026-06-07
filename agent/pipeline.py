@@ -237,6 +237,7 @@ class SmartHomePipeline:
         text        : str  = None,
         audio_array : np.ndarray = None,
         verbose     : bool = True,
+        skip_tts    : bool = False,
     ) -> dict:
         """
         Xử lý một câu lệnh. Nhận text hoặc audio_array (không cần cả hai).
@@ -248,6 +249,7 @@ class SmartHomePipeline:
             text        : Câu lệnh text (dùng khi STT tắt hoặc test)
             audio_array : Mảng audio float32 16kHz từ microphone
             verbose     : In chi tiết từng bước
+            skip_tts    : Bỏ qua bước phát TTS (dùng khi caller tự xử lý audio)
 
         Returns:
             dict với 2 key:
@@ -292,8 +294,8 @@ class SmartHomePipeline:
         # ── Bước 3.5: Normalize text trước khi đưa vào TTS ───────
         response_tts = normalize_for_tts(response)
 
-        # ── Bước 4: TTS (blocking) ────────────────────────────────
-        if self.tts is not None:
+        # ── Bước 4: TTS (blocking) — bỏ qua nếu skip_tts=True ────
+        if self.tts is not None and not skip_tts:
             self.tts.speak(response_tts)
 
         # ── Log chi tiết ──────────────────────────────────────────

@@ -39,7 +39,12 @@ async def lifespan(app: FastAPI):
     # Ket noi MQTT Broker
     mqtt_service.start()
 
-    # Chay Background Workers
+    # Khởi động AI Pipeline (STT + NLU + DM + NLG + TTS) — load 1 lần duy nhất
+    voice_routers.init_pipeline()
+
+    # Chạy Background Workers
+    asyncio.create_task(alarm_worker())
+    asyncio.create_task(buzzer_alarm_worker())
     asyncio.create_task(cleanup_worker())
 
     yield  # Server dang chay
