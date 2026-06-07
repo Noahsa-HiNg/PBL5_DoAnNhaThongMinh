@@ -15,14 +15,13 @@ from core.ws_manager import sio
 from core.database import init_db
 from core.config import SERVER_PORT
 from services.mqtt_service import mqtt_service
-from workers.worker import alarm_worker, buzzer_alarm_worker, cleanup_worker
+from workers.worker import cleanup_worker
 from routers import (
     system_routers,
     status_routers,
     sensor_routers,
     control_routers,
     schedule_routers,
-    alarm_routers,
     bulk_routers,
     weather_routers,
     context_routers,
@@ -41,8 +40,6 @@ async def lifespan(app: FastAPI):
     mqtt_service.start()
 
     # Chay Background Workers
-    asyncio.create_task(alarm_worker())
-    asyncio.create_task(buzzer_alarm_worker())
     asyncio.create_task(cleanup_worker())
 
     yield  # Server dang chay
@@ -74,7 +71,6 @@ fastapi_app.include_router(status_routers.router)       # /api/status/...
 fastapi_app.include_router(sensor_routers.router)       # /api/sensors/...
 fastapi_app.include_router(control_routers.router)      # /api/control/...
 fastapi_app.include_router(schedule_routers.router)     # /api/schedules/...
-fastapi_app.include_router(alarm_routers.router)        # /api/alarms/...
 fastapi_app.include_router(bulk_routers.router)         # /api/bulk/...
 fastapi_app.include_router(weather_routers.router)      # /api/weather/...
 fastapi_app.include_router(context_routers.router)      # /api/context/...

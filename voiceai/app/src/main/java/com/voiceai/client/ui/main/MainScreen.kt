@@ -14,8 +14,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.voiceai.client.ui.alarms.AlarmsScreen
-import com.voiceai.client.ui.alarms.AlarmsViewModel
+import com.voiceai.client.ui.alarms.SchedulesScreen
+import com.voiceai.client.ui.alarms.SchedulesViewModel
 import com.voiceai.client.ui.chat.ChatScreen
 import com.voiceai.client.ui.chat.ChatViewModel
 import com.voiceai.client.ui.devices.DevicesScreen
@@ -32,8 +32,8 @@ sealed class NavTab(
 ) {
     object Chat     : NavTab("chat",     "Chat",     Icons.Filled.Chat,     Icons.Outlined.Chat)
     object Devices  : NavTab("devices",  "Thiết bị", Icons.Filled.Devices,  Icons.Outlined.Devices)
-    object Dashboard : NavTab("dashboard", "Dashboard", Icons.Filled.BarChart, Icons.Outlined.BarChart)
-    object Alarms   : NavTab("alarms",   "Báo thức", Icons.Filled.Alarm,    Icons.Outlined.Alarm)
+    object Dashboard : NavTab("dashboard", "Cảm biến", Icons.Filled.BarChart, Icons.Outlined.BarChart)
+    object Alarms   : NavTab("alarms",   "Hẹn giờ", Icons.Filled.Alarm,    Icons.Outlined.Alarm)
     object Settings : NavTab("settings", "Cài đặt",  Icons.Filled.Settings, Icons.Outlined.Settings)
 }
 
@@ -47,7 +47,7 @@ fun MainScreen() {
     val chatViewModel: ChatViewModel         = koinViewModel()
     val devicesViewModel: DevicesViewModel   = koinViewModel()
     val dashboardViewModel: com.voiceai.client.ui.dashboard.SensorDashboardViewModel = koinViewModel()
-    val alarmsViewModel: AlarmsViewModel     = koinViewModel()
+    val schedulesViewModel: SchedulesViewModel = koinViewModel()
     val settingsViewModel: SettingsViewModel = koinViewModel()
 
     Scaffold(
@@ -98,7 +98,7 @@ fun MainScreen() {
                 com.voiceai.client.ui.dashboard.SensorDashboardScreen(viewModel = dashboardViewModel)
             }
             composable(NavTab.Alarms.route) {
-                AlarmsScreen(viewModel = alarmsViewModel)
+                SchedulesScreen(viewModel = schedulesViewModel)
             }
             composable(NavTab.Settings.route) {
                 SettingsScreen(viewModel = settingsViewModel)

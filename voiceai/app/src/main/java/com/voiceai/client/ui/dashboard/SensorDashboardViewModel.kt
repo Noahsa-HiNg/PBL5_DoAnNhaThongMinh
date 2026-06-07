@@ -21,6 +21,15 @@ class SensorDashboardViewModel(
     private val _lightHistory = MutableStateFlow<List<SensorReadingEntity>>(emptyList())
     val lightHistory: StateFlow<List<SensorReadingEntity>> = _lightHistory.asStateFlow()
 
+    private val _currentTemp = MutableStateFlow<Double?>(null)
+    val currentTemp: StateFlow<Double?> = _currentTemp.asStateFlow()
+
+    private val _currentHumid = MutableStateFlow<Double?>(null)
+    val currentHumid: StateFlow<Double?> = _currentHumid.asStateFlow()
+
+    private val _currentLight = MutableStateFlow<Double?>(null)
+    val currentLight: StateFlow<Double?> = _currentLight.asStateFlow()
+
     init {
         observeSocketEvents()
         loadLocalData()
@@ -34,9 +43,9 @@ class SensorDashboardViewModel(
                     val dataObj = event.data
                     
                     val value1 = dataObj.optDouble("value1", 0.0)
-                    val value2 = if (dataObj.has("value2")) dataObj.getDouble("value2") else null
+                    val value2 = if (dataObj.isNull("value2")) null else dataObj.optDouble("value2")
                     val unit1 = dataObj.optString("unit1", "")
-                    val unit2 = if (dataObj.has("unit2")) dataObj.getString("unit2") else null
+                    val unit2 = if (dataObj.isNull("unit2")) null else dataObj.optString("unit2")
 
                     val entity = SensorReadingEntity(
                         deviceId = deviceId,
@@ -51,6 +60,14 @@ class SensorDashboardViewModel(
 
                     // Update UI State (limit 50)
                     updateUiState(entity)
+                    
+                    // Update current values
+                    if (deviceId == 9) {
+                        _currentTemp.value = value1
+                        _currentHumid.value = value2
+                    } else if (deviceId == 10) {
+                        _currentLight.value = value1
+                    }
                 }
             }
         }
@@ -60,9 +77,16 @@ class SensorDashboardViewModel(
         viewModelScope.launch {
             sensorReadingDao.getReadingsByDevice(9).take(1).collect { list ->
                 _tempHumidHistory.value = list.take(50).reversed()
+                list.firstOrNull()?.let {
+                    _currentTemp.value = it.value1
+                    _currentHumid.value = it.value2
+                }
             }
             sensorReadingDao.getReadingsByDevice(10).take(1).collect { list ->
                 _lightHistory.value = list.take(50).reversed()
+                list.firstOrNull()?.let {
+                    _currentLight.value = it.value1
+                }
             }
         }
     }

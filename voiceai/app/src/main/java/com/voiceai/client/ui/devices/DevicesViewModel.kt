@@ -57,28 +57,41 @@ class DevicesViewModel(
             socketRepository.events.collect { event ->
                 when (event) {
                     is SocketEvent.DeviceUpdate -> {
-                        val newStatus = event.data.optString("state", "").uppercase()
-                            .ifEmpty { event.data.optInt("speed", 0).toString() }
-                        updateDeviceStatus(event.deviceId, newStatus)
-                    }
-                    is SocketEvent.SensorUpdate -> {
-                        // Cập nhật giá trị cảm biến trong list sensors
-                        _uiState.update { s ->
-                            s.copy(sensors = s.sensors.map { 
-                                if (it.id == event.deviceId) {
-                                    // Giả sử Device model có field để chứa dữ liệu sensor phức tạp hoặc ta map vào status
-                                    val sensorText = if (event.type == "dht11") {
-                                        "${event.data.optDouble("temperature")}°C - ${event.data.optDouble("humidity")}%"
-                                    } else {
-                                        event.data.optString("light_value")
-                                    }
-                                    it.copy(status = sensorText)
-                                } else it
-                            })
+                        val data = event.data
+                        val deviceId = event.deviceId
+                        val type = event.type
+                        
+                        val newStatus = when (type) {
+                            "light", "buzzer" -> {
+                                data.optString("state", "off").uppercase()
+                            }
+                            "fan" -> {
+                                val state = data.optString("state", "off").uppercase()
+                                if (state == "ON") {
+                                    data.optInt("speed", 1).toString()
+                                } else "OFF"
+                            }
+                            "door_lock" -> {
+                                data.optString("state", "locked").uppercase()
+                            }
+                            else -> data.optString("state", "OFF").uppercase()
                         }
+                        
+                        // Cập nhật vào Database thay vì chỉ UI
+                        updateDeviceInDatabase(deviceId, newStatus)
                     }
                     else -> {}
                 }
+            }
+        }
+    }
+
+    private fun updateDeviceInDatabase(id: Int, status: String) {
+        viewModelScope.launch {
+            // Lấy thiết bị hiện tại từ DB để giữ các thông tin khác
+            localRepository.allDevices.firstOrNull()?.find { it.id == id }?.let { current ->
+                val updated = current.copy(status = status)
+                localRepository.upsertDevices(listOf(updated))
             }
         }
     }
@@ -112,22 +125,23 @@ class DevicesViewModel(
 
     fun toggleLight(device: Device) {
         val newStatus = if (device.isOn) "OFF" else "ON"
-        updateDeviceStatus(device.id, newStatus)
+        updateDeviceInDatabase(device.id, newStatus)
         viewModelScope.launch {
             deviceRepository.toggleLight(device.id, device.isOn)
                 .onFailure { e ->
-                    updateDeviceStatus(device.id, device.status)
+                    updateDeviceInDatabase(device.id, device.status)
                     _uiState.update { it.copy(error = e.message) }
                 }
         }
     }
 
     fun setFanSpeed(device: Device, speed: Int) {
-        updateDeviceStatus(device.id, speed.toString())
+        val newStatus = if (speed > 0) speed.toString() else "OFF"
+        updateDeviceInDatabase(device.id, newStatus)
         viewModelScope.launch {
             deviceRepository.setFanSpeed(device.id, speed)
                 .onFailure { e ->
-                    updateDeviceStatus(device.id, device.status)
+                    updateDeviceInDatabase(device.id, device.status)
                     _uiState.update { it.copy(error = e.message) }
                 }
         }
@@ -136,10 +150,11 @@ class DevicesViewModel(
     fun toggleDoor(device: Device? = null) {
         val isCurrentlyUnlocked = device?.isOn ?: uiState.value.isMainDoorUnlocked
         val newUnlockState = !isCurrentlyUnlocked
+        val newStatus = if (newUnlockState) "UNLOCKED" else "LOCKED"
         
         // Optimistic UI update
         if (device != null) {
-            updateDeviceStatus(device.id, if (newUnlockState) "unlocked" else "locked")
+            updateDeviceInDatabase(device.id, newStatus)
         } else {
             _uiState.update { it.copy(isMainDoorUnlocked = newUnlockState) }
         }
@@ -151,7 +166,7 @@ class DevicesViewModel(
                 .onFailure { e ->
                     // Rollback on failure
                     if (device != null) {
-                        updateDeviceStatus(device.id, device.status)
+                        updateDeviceInDatabase(device.id, device.status)
                     } else {
                         _uiState.update { it.copy(isMainDoorUnlocked = isCurrentlyUnlocked) }
                     }
@@ -162,11 +177,11 @@ class DevicesViewModel(
 
     fun toggleBuzzer(device: Device) {
         val newStatus = if (device.isOn) "OFF" else "ON"
-        updateDeviceStatus(device.id, newStatus)
+        updateDeviceInDatabase(device.id, newStatus)
         viewModelScope.launch {
             deviceRepository.controlBuzzer(device.id, !device.isOn)
                 .onFailure { e ->
-                    updateDeviceStatus(device.id, device.status)
+                    updateDeviceInDatabase(device.id, device.status)
                     _uiState.update { it.copy(error = e.message) }
                 }
         }
@@ -185,17 +200,6 @@ class DevicesViewModel(
             deviceRepository.turnOffAllLights()
                 .onSuccess { loadDevices() }
                 .onFailure { e -> _uiState.update { it.copy(error = e.message) } }
-        }
-    }
-
-    private fun updateDeviceStatus(id: Int, newStatus: String) {
-        _uiState.update { s ->
-            s.copy(
-                lights = s.lights.map { if (it.id == id) it.copy(status = newStatus) else it },
-                fans   = s.fans.map   { if (it.id == id) it.copy(status = newStatus) else it },
-                doors  = s.doors.map  { if (it.id == id) it.copy(status = newStatus) else it },
-                buzzers = s.buzzers.map { if (it.id == id) it.copy(status = newStatus) else it }
-            )
         }
     }
 

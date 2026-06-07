@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime, timedelta
-from core.database import get_db_connection, get_device_by_id, get_devices_by_type
+from core.database import get_db_connection, get_device_by_id, get_devices_by_type, get_id_by_name
 from models.schemas import ScheduleSetRequest, TimerSetRequest, BatchTimerRequest
+from core.ws_manager import socketio_manager
 
 router = APIRouter(prefix="/api/schedules", tags=["Hẹn giờ & Lịch trình"])
 
@@ -193,4 +194,119 @@ async def cancel_schedule(schedule_id: int):
     return {
         "status": "success",
         "message": f"Đã hủy hẹn giờ #{schedule_id}"
+    }
+
+
+# ============================================================
+# API MỚI CHO ANDROID APP (dung device_name thay vi device_id)
+# ============================================================
+
+@router.get("/devices")
+async def get_devices_for_schedule():
+    """Lay danh sach thiet bi de hien thi dropdown tren App"""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name, type FROM devices WHERE type IN ('light', 'fan', 'buzzer') ORDER BY type, id")
+        rows = cursor.fetchall()
+    finally:
+        conn.close()
+    
+    devices = [{"device_id": r["id"], "device_name": r["name"], "device_type": r["type"]} for r in rows]
+    
+    return {
+        "status": "success",
+        "data": {"devices": devices}
+    }
+
+
+@router.post("/set-by-name")
+async def set_schedule_by_name(device_name: str, command: str, time: str):
+    """Dat hen gio tuyet doi theo ten thiet bi"""
+    device_id = get_id_by_name(device_name)
+    if not device_id:
+        raise HTTPException(status_code=404, detail=f"Khong tim thay thiet bi: {device_name}")
+    
+    device = get_device_by_id(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Khong tim thay thiet bi")
+    
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            "INSERT INTO schedules (device_id, command, trigger_time) VALUES (?, ?, ?)",
+            (device_id, command, time)
+        )
+        conn.commit()
+        cursor = conn.execute("SELECT last_insert_rowid()")
+        schedule_id = cursor.fetchone()[0]
+    finally:
+        conn.close()
+    
+    await socketio_manager.broadcast_schedule_updated(
+        action="create",
+        schedule_id=schedule_id,
+        device_name=device_name,
+        command=command,
+        execute_at=time
+    )
+    
+    return {
+        "status": "success",
+        "message": f"Da dat hen gio cho {device_name} vao luc {time}",
+        "data": {
+            "schedule_id": schedule_id,
+            "device_id": device_id,
+            "device_name": device_name,
+            "command": command,
+            "execute_at": time,
+            "status": "PENDING"
+        }
+    }
+
+
+@router.post("/set-timer-by-name")
+async def set_timer_by_name(device_name: str, command: str, delay_minutes: int):
+    """Hen gio sau N phut theo ten thiet bi"""
+    device_id = get_id_by_name(device_name)
+    if not device_id:
+        raise HTTPException(status_code=404, detail=f"Khong tim thay thiet bi: {device_name}")
+    
+    device = get_device_by_id(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Khong tim thay thiet bi")
+    
+    trigger_time = (datetime.now() + timedelta(minutes=delay_minutes)).strftime("%Y-%m-%d %H:%M:%S")
+    
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            "INSERT INTO schedules (device_id, command, trigger_time) VALUES (?, ?, ?)",
+            (device_id, command, trigger_time)
+        )
+        conn.commit()
+        cursor = conn.execute("SELECT last_insert_rowid()")
+        schedule_id = cursor.fetchone()[0]
+    finally:
+        conn.close()
+    
+    await socketio_manager.broadcast_schedule_updated(
+        action="create",
+        schedule_id=schedule_id,
+        device_name=device_name,
+        command=command,
+        execute_at=trigger_time
+    )
+    
+    return {
+        "status": "success",
+        "message": f"Da hen gio {command} cho {device_name} sau {delay_minutes} phut",
+        "data": {
+            "schedule_id": schedule_id,
+            "device_id": device_id,
+            "device_name": device_name,
+            "command": command,
+            "execute_at": trigger_time,
+            "status": "PENDING"
+        }
     }

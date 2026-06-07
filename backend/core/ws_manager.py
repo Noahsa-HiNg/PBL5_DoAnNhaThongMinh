@@ -51,6 +51,23 @@ class SocketIOManager:
         await sio.emit("device_update", payload)
         print(f"[SIO] Broadcast device_update: {payload}")
 
+    async def broadcast_schedule_updated(self, action: str, schedule_id: int, device_name: str, command: str, execute_at: str):
+        """
+        Broadcast khi co thay doi lich hen gio (tao/huy).
+
+        Payload:
+            {"action": "create"/"cancel", "schedule_id": int, "device_name": str, "command": str, "execute_at": str}
+        """
+        payload = {
+            "action": action,
+            "schedule_id": schedule_id,
+            "device_name": device_name,
+            "command": command,
+            "execute_at": execute_at
+        }
+        await sio.emit("schedule_updated", payload)
+        print(f"[SIO] Broadcast schedule_updated: {payload}")
+
     async def broadcast_alarm_triggered(self, label: str, time: str):
         """
         Broadcast kich hoat bao thuc.

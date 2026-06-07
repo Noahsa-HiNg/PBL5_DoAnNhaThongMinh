@@ -48,7 +48,8 @@ class ChatViewModel(
     private var recordingJob: Job? = null
 
     init {
-        loadConversationHistory()
+        // KHÔNG tải lịch sử cũ từ server để đảm bảo tính chất Session-based
+        // loadConversationHistory() 
         observeSocketEvents()
     }
 
@@ -57,12 +58,14 @@ class ChatViewModel(
             socketRepository.events.collect { event ->
                 when (event) {
                     is com.voiceai.client.data.network.SocketEvent.Connected -> {
-                        _uiState.update { it.copy(isConnected = true, connectionError = null) }
+                        // Xóa sạch lỗi cũ khi kết nối thành công
+                        _uiState.update { it.copy(isConnected = true, connectionError = null, error = null) }
                     }
                     is com.voiceai.client.data.network.SocketEvent.Disconnected -> {
                         _uiState.update { it.copy(isConnected = false) }
                     }
                     is com.voiceai.client.data.network.SocketEvent.Error -> {
+                        // Chỉ hiển thị lỗi của hiện tại
                         _uiState.update { it.copy(connectionError = event.message) }
                     }
                     else -> { /* Handle other events if needed */ }

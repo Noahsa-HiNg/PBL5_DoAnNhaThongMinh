@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import Optional
 
 # ---- CONTROL SCHEMAS ----
@@ -23,14 +23,28 @@ class AutoModeRequest(BaseModel):
 
 # ---- SCHEDULE SCHEMAS ----
 class ScheduleSetRequest(BaseModel):
-    device_id: int
+    device_id: Optional[int] = None       # Voice gui ID
+    device_name: Optional[str] = None     # App gui ten
     command: str
-    time: str           # ISO 8601
+    time: str                             # ISO 8601
+    
+    @model_validator(mode="after")
+    def check_device(self):
+        if self.device_id is None and self.device_name is None:
+            raise ValueError("Phai cung cap device_id HOAC device_name")
+        return self
 
 class TimerSetRequest(BaseModel):
-    device_id: int
+    device_id: Optional[int] = None       # Voice gui ID
+    device_name: Optional[str] = None     # App gui ten
     command: str
     delay_minutes: int
+    
+    @model_validator(mode="after")
+    def check_device(self):
+        if self.device_id is None and self.device_name is None:
+            raise ValueError("Phai cung cap device_id HOAC device_name")
+        return self
 
 class BatchTimerRequest(BaseModel):
     device_type: str    # "light" / "fan" / "all"
