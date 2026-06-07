@@ -11,8 +11,7 @@ def get_model_and_processor(model_path):
 
     print(f"⏳ Đang nạp mô hình từ: {model_path}...")
     
-    # 1. SỬA Ở ĐÂY: Load processor trực tiếp từ model gốc của VinAI trên mạng
-    processor = WhisperProcessor.from_pretrained("vinai/PhoWhisper-base")
+    processor = WhisperProcessor.from_pretrained(model_path)
     
     # 2. Vẫn load model (trọng số đã fine-tune) từ thư mục local của bạn
     model = WhisperForConditionalGeneration.from_pretrained(

@@ -2,7 +2,8 @@
 tts_speaker.py — Wrapper cho MeloTTS Vietnamese
 Tích hợp vào Smart Home Pipeline (luôn đọc, cuda, blocking)
 """
-
+import os
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
 import logging
 import subprocess
 import tempfile

@@ -77,6 +77,7 @@ class DialogState:
     waiting_ttl:      int            = 0
     last_schedule:    Optional[str]  = None
     last_alarm:       Optional[str]  = None
+    last_alarm_id:    Optional[str]  = None
     device_states:    Dict[str, str] = field(default_factory=lambda: dict(DEFAULT_DEVICE_STATES))
     history:          List[str]      = field(default_factory=list)
 
@@ -320,6 +321,98 @@ def _resolve_room_from_text(raw_text: str) -> Optional[str]:
     text_lower = raw_text.lower().strip()
     for vi, key in sorted(ROOM_VI_MAP.items(), key=lambda x: -len(x[0])):
         if vi in text_lower: return key
+    return None
+
+
+# ── Time parsing helpers ─────────────────────────────────────────────
+
+# Bảng chữ số tiếng Việt → int (dùng để parse time_delay / time_absolute)
+_VI_NUM: Dict[str, int] = {
+    'không': 0, 'một': 1, 'hai': 2, 'ba': 3, 'bốn': 4,
+    'năm': 5, 'sáu': 6, 'bảy': 7, 'tám': 8, 'chín': 9,
+    'mười': 10, 'mười một': 11, 'mười hai': 12, 'mười ba': 13,
+    'mười bốn': 14, 'mười lăm': 15, 'mười sáu': 16, 'mười bảy': 17,
+    'mười tám': 18, 'mười chín': 19,
+    'hai mươi': 20, 'hai mươi mốt': 21, 'hai mươi hai': 22,
+    'hai mươi ba': 23, 'hai mươi bốn': 24, 'hai mươi lăm': 25,
+    'hai mươi sáu': 26, 'hai mươi bảy': 27, 'hai mươi tám': 28,
+    'hai mươi chín': 29, 'ba mươi': 30, 'ba mươi mốt': 31,
+    'ba mươi hai': 32, 'ba mươi ba': 33, 'ba mươi bốn': 34,
+    'ba mươi lăm': 35, 'ba mươi sáu': 36, 'ba mươi bảy': 37,
+    'ba mươi tám': 38, 'ba mươi chín': 39, 'bốn mươi': 40,
+    'bốn mươi lăm': 45, 'năm mươi': 50, 'năm mươi lăm': 55,
+    'sáu mươi': 60,
+    # alias thường gặp
+    'mốt': 1, 'lăm': 5, 'rưỡi': 30,
+}
+
+import re as _re_time
+
+def _vi_str_to_int(text: str) -> Optional[int]:
+    """Chuyển chuỗi số tiếng Việt (hoặc Arabic) thành int."""
+    t = text.strip().lower()
+    # Thử Arabic trước
+    m = _re_time.search(r'\d+', t)
+    if m:
+        return int(m.group())
+    # Thử khớp phrase dài nhất trước
+    for phrase, val in sorted(_VI_NUM.items(), key=lambda x: -len(x[0])):
+        if phrase in t:
+            return val
+    return None
+
+
+def _parse_delay_minutes(time_del: str) -> Optional[int]:
+    """
+    Parse chuỗi time_delay (đã qua stt_normalizer) → số phút nguyên.
+    Ví dụ: "mười lăm phút" → 15, "30 phút" → 30, "nửa tiếng" → 30
+    """
+    t = time_del.lower().strip()
+    if 'nửa tiếng' in t or 'nửa giờ' in t:
+        return 30
+    # Tách phần số trước từ "phút"
+    m = _re_time.search(r'(.+?)\s*phút', t)
+    if m:
+        return _vi_str_to_int(m.group(1))
+    # Fallback: lấy số bất kỳ trong chuỗi
+    return _vi_str_to_int(t)
+
+
+def _parse_time_absolute(time_abs: str) -> Optional[str]:
+    """
+    Parse chuỗi time_absolute (đã qua stt_normalizer) → "HH:MM".
+    Ví dụ: "sáu giờ ba mươi phút" → "06:30"
+            "bảy giờ" → "07:00"
+            "hai mươi hai giờ ba mươi phút" → "22:30"
+    """
+    t = time_abs.lower().strip()
+
+    # Trường hợp đã là HH:MM
+    m = _re_time.match(r'^(\d{1,2}):(\d{2})$', t)
+    if m:
+        return f"{int(m.group(1)):02d}:{m.group(2)}"
+
+    # Tách "X giờ Y phút" hoặc "X giờ rưỡi"
+    m = _re_time.search(r'(.+?)\s*giờ\s*(.*)', t)
+    if m:
+        hour_str = m.group(1).strip()
+        min_str  = m.group(2).strip()
+
+        hour = _vi_str_to_int(hour_str)
+        if hour is None:
+            return None
+
+        minute = 0
+        if min_str:
+            # Loại bỏ từ "phút" ở cuối
+            min_str_clean = _re_time.sub(r'\bphút\b', '', min_str).strip()
+            parsed_min = _vi_str_to_int(min_str_clean) if min_str_clean else None
+            if parsed_min is not None:
+                minute = parsed_min
+
+        if 0 <= hour <= 23 and 0 <= minute <= 59:
+            return f"{hour:02d}:{minute:02d}"
+
     return None
 
 
@@ -760,7 +853,7 @@ class SmartHomeDialogManager:
     # ------------------------------------------------------------------
     def _handle_schedule(self, slots, state: DialogState) -> str:
         import re as _re
-        actions, signal, _, time_abs, time_del, _ = _extract_slots(slots)
+        actions, signal, _, time_abs, time_del, value_str = _extract_slots(slots)
 
         # [FIX] Nếu không có device trong slots → lấy từ pending_action (context suggest)
         if not actions and state.pending_action:
@@ -778,11 +871,24 @@ class SmartHomeDialogManager:
                         'is_all': False,
                         'device': state.last_device, 'room': state.last_room}]
 
-        # Parse delay_minutes từ string "1 phút nữa", "30 phút", ...
+        # Parse delay_minutes từ string đã qua stt_normalizer (có thể là chữ tiếng Việt)
         delay_minutes = None
         if time_del:
-            m = _re.search(r'(\d+)', time_del)
-            if m: delay_minutes = int(m.group(1))
+            delay_minutes = _parse_delay_minutes(time_del)
+        # Fallback: NLU đôi khi tag số nhỏ (1,2,3...) thành B-value thay vì I-time_delay
+        # Nếu có time_delay nhưng không parse được số → thử lấy từ value slot
+        if delay_minutes is None and time_del and value_str:
+            delay_minutes = _vi_str_to_int(value_str)
+            if delay_minutes is not None:
+                logger.debug(f"delay_minutes fallback từ value slot: {value_str} → {delay_minutes}")
+
+        # Parse time_absolute → HH:MM để gọi API đúng format ISO 8601
+        time_abs_hhmm = None
+        if time_abs:
+            time_abs_hhmm = _parse_time_absolute(time_abs)
+            if time_abs_hhmm is None:
+                logger.warning(f"Không parse được time_absolute: '{time_abs}', dùng giờ hiện tại")
+                time_abs_hhmm = datetime.now().strftime('%H:%M')
 
         if time_abs:
             time_part = f'time_absolute={time_abs}'
@@ -790,16 +896,30 @@ class SmartHomeDialogManager:
             time_part = f'time_delay={time_del}'
         else:
             now = datetime.now()
-            time_part = f'time_absolute={now.strftime("%H:%M")}'
+            time_abs_hhmm = now.strftime('%H:%M')
+            time_part = f'time_absolute={time_abs_hhmm}'
 
         parts = [f'RESULT:set | schedule_set | {time_part}']
         if signal: parts.append(signal)
 
         from config import DEVICE_ID_MAP as _DIM
+        _SKIP_TYPES = {'sensor_temp_humi', 'sensor_light', 'door_lock', 'buzzer'}
+
+        # [FIX] Nếu có cả device-all lẫn device cụ thể (vd: "bật hết đèn")
+        # → bỏ bản ghi device-all, giữ device cụ thể với is_all=True
+        specific_devices = [a for a in actions if a.get('device') != 'all']
+        all_devices      = [a for a in actions if a.get('device') == 'all']
+        if specific_devices and all_devices:
+            # Có device cụ thể → dùng device cụ thể, đánh dấu is_all=True
+            for a in specific_devices:
+                a['is_all'] = True
+            actions = specific_devices
+        # Nếu chỉ có device-all ("tắt hết đi") → giữ nguyên
 
         for act_dict in actions:
             action = act_dict.get('action', ''); device = act_dict.get('device', '')
             room   = act_dict.get('room');       act_s  = act_dict.get('action_slot', '')
+            is_all = act_dict.get('is_all', False)
             if room is None and device and device not in NO_ROOM_DEVICES:
                 room = state.last_room
             if device == 'ventilation_fan': room = 'kitchen'
@@ -813,15 +933,37 @@ class SmartHomeDialogManager:
             if self.api and device:
                 try:
                     cmd = action.upper() if action in ('on', 'off') else action
-                    did = _DIM.get((device, room))
-                    if did:
-                        if delay_minutes is not None:
-                            self.api.set_timer({'device_id': did, 'command': cmd,
-                                                'delay_minutes': delay_minutes})
-                        elif time_abs:
-                            execute_at = f"{datetime.now().strftime('%Y-%m-%d')}T{time_abs}:00"
-                            self.api.set_schedule({'device_id': did, 'command': cmd,
-                                                   'time': execute_at})
+
+                    if device == 'all':
+                        # "tắt hết" không có device cụ thể → loop tất cả
+                        target_ids = [
+                            did for (dev, rm), did in _DIM.items()
+                            if dev not in _SKIP_TYPES
+                        ]
+                    elif is_all:
+                        # "bật hết đèn" → chỉ loop các room của device đó
+                        target_ids = [
+                            _DIM.get((device, rm))
+                            for rm in (DEVICE_ROOMS.get(device) or [])
+                            if _DIM.get((device, rm))
+                        ]
+                    else:
+                        # device + room cụ thể
+                        did = _DIM.get((device, room))
+                        target_ids = [did] if did else []
+
+                    for did in target_ids:
+                        try:
+                            if delay_minutes is not None:
+                                self.api.set_timer({'device_id': did, 'command': cmd,
+                                                    'delay_minutes': delay_minutes})
+                            elif time_abs_hhmm:
+                                execute_at = f"{datetime.now().strftime('%Y-%m-%d')}T{time_abs_hhmm}:00"
+                                self.api.set_schedule({'device_id': did, 'command': cmd,
+                                                       'time': execute_at})
+                        except (APIError, Exception) as ex:
+                            logger.warning(f"API schedule loi device_id={did}: {ex}")
+
                 except (APIError, Exception) as e:
                     logger.warning(f"API schedule loi: {e}")
 
@@ -849,6 +991,26 @@ class SmartHomeDialogManager:
 
         if mode == 'set':
             state.last_alarm = time_str
+
+            if self.api:
+                try:
+                    # Parse time_absolute → HH:MM trước khi gọi API
+                    time_hhmm = _parse_time_absolute(time_str)
+                    if time_hhmm is None:
+                        logger.warning(f"Không parse được alarm time: '{time_str}', bỏ qua API call")
+                    else:
+                        execute_at = f"{datetime.now().strftime('%Y-%m-%d')}T{time_hhmm}:00"
+                        resp = self.api.set_alarm({'time': execute_at})
+                        # Lưu alarm_id để có thể cancel sau
+                        alarm_id = resp.get('alarm_id') or resp.get('id')
+                        if alarm_id:
+                            state.last_alarm_id = str(alarm_id)
+                            logger.info(f"Đặt báo thức thành công: {time_hhmm}, id={alarm_id}")
+                        else:
+                            logger.info(f"Đặt báo thức thành công: {time_hhmm} (không có alarm_id)")
+                except APIError as e:
+                    logger.warning(f"API alarm lỗi: {e}")
+
         return f'RESULT:{mode} | alarm_{mode} | {time_part}'
 
     # ------------------------------------------------------------------
@@ -859,10 +1021,39 @@ class SmartHomeDialogManager:
         elif cancel_type == 'schedule' and not has_schedule and has_alarm:  cancel_type = 'alarm'
 
         if cancel_type == 'alarm':
-            ref = state.last_alarm or 'unknown'; state.last_alarm = None
+            ref = state.last_alarm or 'unknown'
+            state.last_alarm = None
+
+            if self.api:
+                try:
+                    alarm_id = getattr(state, 'last_alarm_id', None)
+                    if alarm_id:
+                        self.api.cancel_alarm(alarm_id)
+                        state.last_alarm_id = None
+                        logger.info(f"Đã hủy báo thức id={alarm_id}")
+                    else:
+                        # Không có id cụ thể → thử lấy từ active alarms rồi cancel cái đầu
+                        active = self.api.get_active_alarms()
+                        alarms = active.get('alarms', active) if isinstance(active, dict) else active
+                        if isinstance(alarms, list) and alarms:
+                            first_id = alarms[0].get('alarm_id') or alarms[0].get('id')
+                            if first_id:
+                                self.api.cancel_alarm(str(first_id))
+                                logger.info(f"Đã hủy báo thức đầu tiên id={first_id}")
+                except APIError as e:
+                    logger.warning(f"API cancel alarm lỗi: {e}")
+
             return f'RESULT:cancelled | alarm_cancel | time_absolute={ref}'
         else:
             state.last_schedule = None
+
+            if self.api:
+                try:
+                    self.api.cancel_all_schedules()
+                    logger.info("Đã hủy toàn bộ schedules")
+                except APIError as e:
+                    logger.warning(f"API cancel schedule lỗi: {e}")
+
             return 'RESULT:cancelled | schedule_cancel'
 
     # ------------------------------------------------------------------

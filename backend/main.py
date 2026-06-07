@@ -15,7 +15,7 @@ from core.ws_manager import sio
 from core.database import init_db
 from core.config import SERVER_PORT
 from services.mqtt_service import mqtt_service
-from workers.worker import cleanup_worker
+from workers.worker import cleanup_worker, alarm_worker, buzzer_alarm_worker
 from routers import (
     system_routers,
     status_routers,
