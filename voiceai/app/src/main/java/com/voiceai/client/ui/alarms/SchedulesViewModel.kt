@@ -35,8 +35,20 @@ class SchedulesViewModel(
     private fun observeSocketEvents() {
         viewModelScope.launch {
             socketRepository.events.collect { event ->
-                if (event is SocketEvent.ScheduleUpdated) {
-                    loadSchedules()
+                when (event) {
+                    is SocketEvent.ScheduleUpdated -> {
+                        loadSchedules()
+                    }
+                    is SocketEvent.Connected -> {
+                        // Tự động xóa lỗi và tải lại dữ liệu khi có kết nối mới thành công
+                        _uiState.update { it.copy(error = null) }
+                        loadSchedules()
+                        loadDevices()
+                    }
+                    is SocketEvent.Error -> {
+                        _uiState.update { it.copy(error = event.message) }
+                    }
+                    else -> {}
                 }
             }
         }
