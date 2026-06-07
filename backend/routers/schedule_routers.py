@@ -1,17 +1,17 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime, timedelta
 from core.database import get_db_connection, get_device_by_id, get_devices_by_type, get_id_by_name
-from models.schemas import ScheduleSetRequest, TimerSetRequest, BatchTimerRequest
+from models.schemas import ScheduleSetRequest, TimerSetRequest, BatchTimerRequest, SetByNameRequest, SetTimerByNameRequest
 from core.ws_manager import socketio_manager
 
-router = APIRouter(prefix="/api/schedules", tags=["Hẹn giờ & Lịch trình"])
+router = APIRouter(prefix="/api/schedules", tags=["Hen gio & Lich trinh"])
 
 @router.post("/set")
 async def set_schedule(req: ScheduleSetRequest):
-    """Đặt hẹn giờ theo thời gian tuyệt đối (ISO 8601)"""
+    """Dat hen gio tuyet doi (ISO 8601)"""
     device = get_device_by_id(req.device_id)
     if not device:
-        raise HTTPException(status_code=404, detail="Không tìm thấy thiết bị")
+        raise HTTPException(status_code=404, detail="Khong tim thay thiet bi")
     
     conn = get_db_connection()
     try:
@@ -20,8 +20,6 @@ async def set_schedule(req: ScheduleSetRequest):
             (req.device_id, req.command, req.time)
         )
         conn.commit()
-        
-        # Lấy ID vừa tạo
         cursor = conn.execute("SELECT last_insert_rowid()")
         schedule_id = cursor.fetchone()[0]
     finally:
@@ -29,7 +27,7 @@ async def set_schedule(req: ScheduleSetRequest):
     
     return {
         "status": "success",
-        "message": f"Đã đặt hẹn giờ cho {device['name']} vào lúc {req.time}",
+        "message": f"Da dat hen gio cho {device['name']} vao luc {req.time}",
         "data": {
             "schedule_id": schedule_id,
             "device_id": req.device_id,
@@ -42,10 +40,10 @@ async def set_schedule(req: ScheduleSetRequest):
 
 @router.post("/set-timer")
 async def set_timer(req: TimerSetRequest):
-    """Hẹn giờ sau N phút kể từ bây giờ"""
+    """Hen gio sau N phut ke tu bay gio"""
     device = get_device_by_id(req.device_id)
     if not device:
-        raise HTTPException(status_code=404, detail="Không tìm thấy thiết bị")
+        raise HTTPException(status_code=404, detail="Khong tim thay thiet bi")
     
     trigger_time = (datetime.now() + timedelta(minutes=req.delay_minutes)).strftime("%Y-%m-%d %H:%M:%S")
     
@@ -63,7 +61,7 @@ async def set_timer(req: TimerSetRequest):
     
     return {
         "status": "success",
-        "message": f"Đã hẹn giờ {req.command} cho {device['name']} sau {req.delay_minutes} phút",
+        "message": f"Da hen gio {req.command} cho {device['name']} sau {req.delay_minutes} phut",
         "data": {
             "schedule_id": schedule_id,
             "device_id": req.device_id,
@@ -76,14 +74,13 @@ async def set_timer(req: TimerSetRequest):
 
 @router.post("/batch")
 async def set_batch_timer(req: BatchTimerRequest):
-    """Hẹn giờ hàng loạt theo loại thiết bị (light/fan/all)"""
+    """Hen gio hang loat theo loai thiet bi (light/fan/all)"""
     trigger_time = (datetime.now() + timedelta(minutes=req.delay_minutes)).strftime("%Y-%m-%d %H:%M:%S")
     
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         
-        # Lấy danh sách thiết bị theo loại
         if req.device_type == "all":
             cursor.execute("SELECT id, name FROM devices WHERE type IN ('light', 'fan', 'buzzer')")
         else:
@@ -91,7 +88,7 @@ async def set_batch_timer(req: BatchTimerRequest):
         
         devices = cursor.fetchall()
         if not devices:
-            raise HTTPException(status_code=404, detail="Không tìm thấy thiết bị phù hợp")
+            raise HTTPException(status_code=404, detail="Khong tim thay thiet bi phu hop")
         
         schedules = []
         for device in devices:
@@ -112,7 +109,7 @@ async def set_batch_timer(req: BatchTimerRequest):
     
     return {
         "status": "success",
-        "message": f"Đã hẹn giờ {req.command} cho {len(schedules)} thiết bị vào lúc {trigger_time}",
+        "message": f"Da hen gio {req.command} cho {len(schedules)} thiet bi vao luc {trigger_time}",
         "data": {
             "affected_count": len(schedules),
             "device_type": req.device_type,
@@ -123,7 +120,7 @@ async def set_batch_timer(req: BatchTimerRequest):
 
 @router.get("/active")
 async def get_active_schedules():
-    """Lấy danh sách hẹn giờ đang chờ (PENDING)"""
+    """Lay danh sach hen gio dang cho (PENDING)"""
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
@@ -160,7 +157,7 @@ async def get_active_schedules():
 
 @router.delete("/cancel-all")
 async def cancel_all_schedules():
-    """Hủy tất cả hẹn giờ đang chờ"""
+    """Huy tat ca hen gio dang cho"""
     conn = get_db_connection()
     try:
         cursor = conn.execute("UPDATE schedules SET status = 'CANCELLED' WHERE status = 'PENDING'")
@@ -171,13 +168,13 @@ async def cancel_all_schedules():
     
     return {
         "status": "success",
-        "message": f"Đã hủy {cancelled_count} hẹn giờ đang chờ",
+        "message": f"Da huy {cancelled_count} hen gio dang cho",
         "data": {"cancelled_count": cancelled_count}
     }
 
 @router.delete("/{schedule_id}")
 async def cancel_schedule(schedule_id: int):
-    """Hủy 1 hẹn giờ theo ID"""
+    """Huy 1 hen gio theo ID"""
     conn = get_db_connection()
     try:
         cursor = conn.execute(
@@ -189,16 +186,15 @@ async def cancel_schedule(schedule_id: int):
         conn.close()
     
     if cursor.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Không tìm thấy hẹn giờ hoặc đã bị hủy")
+        raise HTTPException(status_code=404, detail="Khong tim thay hen gio hoac da bi huy")
     
     return {
         "status": "success",
-        "message": f"Đã hủy hẹn giờ #{schedule_id}"
+        "message": f"Da huy hen gio #{schedule_id}"
     }
 
-
 # ============================================================
-# API MỚI CHO ANDROID APP (dung device_name thay vi device_id)
+# API MOI CHO ANDROID APP (dung device_name thay vi device_id)
 # ============================================================
 
 @router.get("/devices")
@@ -219,13 +215,12 @@ async def get_devices_for_schedule():
         "data": {"devices": devices}
     }
 
-
 @router.post("/set-by-name")
-async def set_schedule_by_name(device_name: str, command: str, time: str):
+async def set_schedule_by_name(req: SetByNameRequest):
     """Dat hen gio tuyet doi theo ten thiet bi"""
-    device_id = get_id_by_name(device_name)
+    device_id = get_id_by_name(req.device_name)
     if not device_id:
-        raise HTTPException(status_code=404, detail=f"Khong tim thay thiet bi: {device_name}")
+        raise HTTPException(status_code=404, detail=f"Khong tim thay thiet bi: {req.device_name}")
     
     device = get_device_by_id(device_id)
     if not device:
@@ -235,7 +230,7 @@ async def set_schedule_by_name(device_name: str, command: str, time: str):
     try:
         conn.execute(
             "INSERT INTO schedules (device_id, command, trigger_time) VALUES (?, ?, ?)",
-            (device_id, command, time)
+            (device_id, req.command, req.time)
         )
         conn.commit()
         cursor = conn.execute("SELECT last_insert_rowid()")
@@ -246,43 +241,42 @@ async def set_schedule_by_name(device_name: str, command: str, time: str):
     await socketio_manager.broadcast_schedule_updated(
         action="create",
         schedule_id=schedule_id,
-        device_name=device_name,
-        command=command,
-        execute_at=time
+        device_name=req.device_name,
+        command=req.command,
+        execute_at=req.time
     )
     
     return {
         "status": "success",
-        "message": f"Da dat hen gio cho {device_name} vao luc {time}",
+        "message": f"Da dat hen gio cho {req.device_name} vao luc {req.time}",
         "data": {
             "schedule_id": schedule_id,
             "device_id": device_id,
-            "device_name": device_name,
-            "command": command,
-            "execute_at": time,
+            "device_name": req.device_name,
+            "command": req.command,
+            "execute_at": req.time,
             "status": "PENDING"
         }
     }
 
-
 @router.post("/set-timer-by-name")
-async def set_timer_by_name(device_name: str, command: str, delay_minutes: int):
+async def set_timer_by_name(req: SetTimerByNameRequest):
     """Hen gio sau N phut theo ten thiet bi"""
-    device_id = get_id_by_name(device_name)
+    device_id = get_id_by_name(req.device_name)
     if not device_id:
-        raise HTTPException(status_code=404, detail=f"Khong tim thay thiet bi: {device_name}")
+        raise HTTPException(status_code=404, detail=f"Khong tim thay thiet bi: {req.device_name}")
     
     device = get_device_by_id(device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Khong tim thay thiet bi")
     
-    trigger_time = (datetime.now() + timedelta(minutes=delay_minutes)).strftime("%Y-%m-%d %H:%M:%S")
+    trigger_time = (datetime.now() + timedelta(minutes=req.delay_minutes)).strftime("%Y-%m-%d %H:%M:%S")
     
     conn = get_db_connection()
     try:
         conn.execute(
             "INSERT INTO schedules (device_id, command, trigger_time) VALUES (?, ?, ?)",
-            (device_id, command, trigger_time)
+            (device_id, req.command, trigger_time)
         )
         conn.commit()
         cursor = conn.execute("SELECT last_insert_rowid()")
@@ -293,19 +287,19 @@ async def set_timer_by_name(device_name: str, command: str, delay_minutes: int):
     await socketio_manager.broadcast_schedule_updated(
         action="create",
         schedule_id=schedule_id,
-        device_name=device_name,
-        command=command,
+        device_name=req.device_name,
+        command=req.command,
         execute_at=trigger_time
     )
     
     return {
         "status": "success",
-        "message": f"Da hen gio {command} cho {device_name} sau {delay_minutes} phut",
+        "message": f"Da hen gio {req.command} cho {req.device_name} sau {req.delay_minutes} phut",
         "data": {
             "schedule_id": schedule_id,
             "device_id": device_id,
-            "device_name": device_name,
-            "command": command,
+            "device_name": req.device_name,
+            "command": req.command,
             "execute_at": trigger_time,
             "status": "PENDING"
         }

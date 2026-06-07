@@ -72,3 +72,14 @@ class BulkAllRequest(BaseModel):
 class ContextConfirmRequest(BaseModel):
     pending_id: str
     confirm: bool
+
+# ---- SCHEDULE APP SCHEMAS (device_name) ----
+class SetByNameRequest(BaseModel):
+    device_name: str
+    command: str
+    time: str           # ISO 8601
+
+class SetTimerByNameRequest(BaseModel):
+    device_name: str
+    command: str
+    delay_minutes: int

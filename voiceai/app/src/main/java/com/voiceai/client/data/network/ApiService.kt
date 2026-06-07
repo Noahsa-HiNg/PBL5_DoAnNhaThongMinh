@@ -88,12 +88,12 @@ interface ApiService {
     @GET("api/schedules/devices")
     suspend fun getScheduleDevices(): ScheduleDevicesResponse
 
-    /** POST /api/schedules/set — Đặt hẹn giờ tuyệt đối */
-    @POST("api/schedules/set")
+    /** POST /api/schedules/set-by-name — Đặt hẹn giờ tuyệt đối */
+    @POST("api/schedules/set-by-name")
     suspend fun setSchedule(@Body req: ScheduleSetRequest): MessageResponse
 
-    /** POST /api/schedules/set-timer — Đặt hẹn giờ sau N phút */
-    @POST("api/schedules/set-timer")
+    /** POST /api/schedules/set-timer-by-name — Đặt hẹn giờ sau N phút */
+    @POST("api/schedules/set-timer-by-name")
     suspend fun setTimer(@Body req: TimerSetRequest): MessageResponse
 
     /** POST /api/schedules/batch — Hẹn giờ hàng loạt */
