@@ -33,8 +33,8 @@ async def lifespan(app: FastAPI):
     # Kết nối MQTT Broker
     mqtt_service.start()
 
-    # Khởi động AI Pipeline (NLU + DM + ViT5)
-#    voice_routers.init_pipeline()
+    # Khởi động AI Pipeline (STT + NLU + DM + NLG + TTS) — load 1 lần duy nhất
+    voice_routers.init_pipeline()
 
     # Chạy Background Workers
     asyncio.create_task(alarm_worker())
