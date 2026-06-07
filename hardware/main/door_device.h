@@ -3,6 +3,7 @@
 #include <ESP32Servo.h>
 
 Servo doorServo; // Tạo đối tượng Servo
+bool doorLocked = true; // Trạng thái cửa: true = LOCK, false = UNLOCK
 
 void setup_door() {
   // Cấu hình chuẩn PWM cho Servo trên ESP32
@@ -23,13 +24,18 @@ void setup_door() {
 void control_door(int id, String command) {
   for (int i = 0; i < deviceCount; i++) {
     if (myDevices[i].id == id && myDevices[i].type == "door_lock") {
-      if (command == "UNLOCK") {
+      if (command == "UNLOCK" && doorLocked) {
+        doorLocked = false;
         doorServo.write(90); // Quay 90 độ để mở cửa
         Serial.println("🚪 Cửa đang MỞ");
       } 
-      else if (command == "LOCK") {
+      else if (command == "LOCK" && !doorLocked) {
+        doorLocked = true;
         doorServo.write(0);  // Quay về 0 độ để đóng cửa
         Serial.println("🚪 Cửa đang ĐÓNG");
+      }
+      else {
+        Serial.printf("🚪 Cửa đã ở trạng thái %s rồi, bỏ qua lệnh.\n", doorLocked ? "LOCK" : "UNLOCK");
       }
       break;
     }

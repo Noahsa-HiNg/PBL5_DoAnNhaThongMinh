@@ -22,10 +22,36 @@ unsigned long lastMQTTCheck = 0;
 const unsigned long WIFI_RETRY_INTERVAL = 10000; // 10 giây thử lại WiFi 1 lần
 const unsigned long MQTT_RETRY_INTERVAL = 5000;  // 5 giây thử lại MQTT 1 lần
 
+// === CHẶN RETAINED MESSAGE ===
+// Mỗi khi ESP32 vừa subscribe, broker tự động gửi lại tin nhắn cũ (retained).
+// Retained message luôn đến ngay lập tức (<100ms). Ta bỏ qua mọi message
+// trong 500ms đầu sau khi subscribe để tránh retained làm lệnh sai.
+unsigned long subscribedAt = 0;
+const unsigned long RETAIN_IGNORE_MS = 2000; // Tăng lên 2 giây để an toàn hơn
+
 void callback(char* topic, byte* payload, unsigned int length) {
-    // Tối ưu: Chuyển payload sang String trực tiếp, không dùng vòng lặp for
     String message((char*)payload, length);
     String strTopic = String(topic);
+    unsigned long now = millis();
+    unsigned long timeSinceSubscribe = now - subscribedAt;
+
+    // === LOG CHI TIẾT ĐỂ CHẨN ĐOÁN ===
+    Serial.println("\n--- MQTT MESSAGE RECEIVED ---");
+    Serial.printf("  Topic  : %s\n", topic);
+    Serial.printf("  Message: %s\n", message.c_str());
+    Serial.printf("  Thoi gian sau subscribe: %lu ms\n", timeSinceSubscribe);
+    Serial.printf("  doorLocked hien tai: %s\n", doorLocked ? "LOCK" : "UNLOCK");
+
+    // Bỏ qua message đến trong 2 giây đầu sau khi subscribe.
+    // Retained message từ broker luôn đến ngay lập tức sau subscribe (<100ms).
+    // Lệnh thật từ người dùng không đến nhanh như vậy.
+    if (timeSinceSubscribe < RETAIN_IGNORE_MS) {
+        Serial.printf("  => BO QUA (retained filter: %lu ms < %lu ms)\n",
+                      timeSinceSubscribe, RETAIN_IGNORE_MS);
+        return;
+    }
+
+    Serial.println("  => XU LY lenh...");
 
     int device_id = strTopic.substring(strTopic.lastIndexOf('/') + 1).toInt();
 
@@ -42,6 +68,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     else if (device_id == 12) {
         control_buzzer(device_id, message); 
     }
+    Serial.println("----------------------------");
 }
 
 void setup_wifi_mqtt() {
@@ -103,8 +130,15 @@ void duy_tri_mqtt() {
       
       if (client.connect(clientId.c_str())) {
         Serial.println("✅ Đã kết nối MQTT Broker thành công! ");
+        subscribedAt = millis(); // Ghi lại thời điểm subscribe để lọc retained
         client.subscribe("home/control/device/#");
         Serial.println("📡 Đã đăng ký lắng nghe lệnh điều khiển!");
+
+        // XÓA RETAINED MESSAGE cho cửa: publish payload rỗng + retain=true
+        // Đây là cách chuẩn MQTT để xóa retained message khỏi broker vĩnh viễn.
+        // Ngay cả khi ESP32 reconnect lần sau, broker sẽ không gửi LOCK cũ nữa.
+        client.publish("home/control/device/11", "", true);
+        Serial.println("🗑️ Đã xóa retained message cũ trên topic cửa.");
       } else {
         Serial.print("❌ Thất bại! Mã lỗi (rc) = ");
         Serial.print(client.state());
