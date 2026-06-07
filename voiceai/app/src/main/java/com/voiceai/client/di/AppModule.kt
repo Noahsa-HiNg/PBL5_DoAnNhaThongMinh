@@ -3,7 +3,7 @@ package com.voiceai.client.di
 
 import com.voiceai.client.data.network.ApiService
 import com.voiceai.client.data.network.DeviceRepository
-import com.voiceai.client.data.network.AlarmRepository
+import com.voiceai.client.data.network.ScheduleRepository
 import com.voiceai.client.data.network.SocketRepository
 import com.voiceai.client.data.audio.AudioRepository
 import com.voiceai.client.data.audio.TtsHelper
@@ -15,7 +15,6 @@ import com.voiceai.client.data.local.LocalDeviceRepository
 import androidx.room.Room
 import com.voiceai.client.ui.chat.ChatViewModel
 import com.voiceai.client.ui.devices.DevicesViewModel
-import com.voiceai.client.ui.alarms.AlarmsViewModel
 import com.voiceai.client.ui.settings.SettingsViewModel
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -83,7 +82,7 @@ val appModule = module {
 
     single { NotificationHelper(get()) }
     single { DeviceRepository(get()) }
-    single { AlarmRepository(get()) }
+    single { ScheduleRepository(get()) }
     single { AudioRepository(get()) }
     single { ChatRepository(get()) }
     single { TtsHelper(get()) }
@@ -102,7 +101,7 @@ val appModule = module {
 
     viewModel { ChatViewModel(get(), get(), get(), get(), get()) }
     viewModel { DevicesViewModel(get(), get(), get(), get()) }
-    viewModel { AlarmsViewModel(get(), get(), get()) }
+    viewModel { com.voiceai.client.ui.alarms.SchedulesViewModel(get(), get()) }
     viewModel { SettingsViewModel(get(), get(), get()) }
     viewModel { com.voiceai.client.ui.dashboard.SensorDashboardViewModel(get(), get(), get()) }
 }

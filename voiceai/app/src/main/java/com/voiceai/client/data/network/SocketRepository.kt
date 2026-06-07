@@ -17,6 +17,7 @@ sealed class SocketEvent {
     object Disconnected : SocketEvent()
     data class Error(val message: String) : SocketEvent()
     data class AlarmTriggered(val label: String, val time: String) : SocketEvent()
+    data class ScheduleUpdated(val action: String, val scheduleId: Int) : SocketEvent()
 }
 
 class SocketRepository(private val userPreferences: UserPreferences) {
@@ -109,6 +110,18 @@ class SocketRepository(private val userPreferences: UserPreferences) {
                     ))
                 } catch (e: Exception) {
                     Log.e(TAG, "Lỗi parse alarm_triggered: ${e.message}")
+                }
+            }
+
+            mSocket?.on("schedule_updated") { args ->
+                try {
+                    val data = args[0] as JSONObject
+                    _events.tryEmit(SocketEvent.ScheduleUpdated(
+                        data.optString("action", "create"),
+                        data.optInt("schedule_id", 0)
+                    ))
+                } catch (e: Exception) {
+                    Log.e(TAG, "Lỗi parse schedule_updated: ${e.message}")
                 }
             }
 

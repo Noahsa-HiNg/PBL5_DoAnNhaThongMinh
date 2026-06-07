@@ -7,15 +7,15 @@ import json
 
 
 async def alarm_worker():
-    """Quét bảng schedules mỗi 5 giây, kích hoạt lệnh đến hạn"""
-    print("🚀 Worker hẹn giờ (schedule) đã bắt đầu...")
+    """Quet bang schedules moi 5 giay, kich hoat lenh den han"""
+    print("[Worker] Schedule da bat dau...")
     while True:
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
             
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # JOIN với bảng devices để lấy type và name của thiết bị
+            # JOIN voi bang devices de lay type va name cua thiet bi
             cursor.execute(
                 """SELECT s.*, d.type AS device_type, d.name AS device_name
                    FROM schedules s
@@ -30,15 +30,13 @@ async def alarm_worker():
                 did         = job['device_id']
                 cmd         = job['command']
                 device_type = job['device_type']
-                device_name = job['device_name'] or f"Thiết bị {did}"
+                device_name = job['device_name'] or f"Thiet bi {did}"
 
                 if device_type == "fan":
-                    # ──────────────────────────────────────────────────────────
-                    # Hardware quạt nhận JSON {"speed": 0-3}, KHÔNG nhận chuỗi
-                    # "ON"/"OFF" như đèn/buzzer.
-                    # command lưu trong DB có thể là "0"/"1"/"2"/"3" (số)
-                    # hoặc "on"/"off" (backward-compat).
-                    # ──────────────────────────────────────────────────────────
+                    # Hardware quat nhan JSON {"speed": 0-3}, KHONG nhan chuoi
+                    # "ON"/"OFF" nhu den/buzzer.
+                    # command luu trong DB co the la "0"/"1"/"2"/"3" (so)
+                    # hoac "on"/"off" (backward-compat).
                     try:
                         speed = int(cmd)
                     except (ValueError, TypeError):
@@ -46,17 +44,17 @@ async def alarm_worker():
 
                     payload = json.dumps({"speed": speed})
                     mqtt_service.publish_command(did, payload)
-                    # Lưu DB dưới dạng số chuỗi "0"/"1"/"2"/"3"
+                    # Luu DB duoi dang so chuoi "0"/"1"/"2"/"3"
                     conn.execute("UPDATE devices SET status = ? WHERE id = ?", (str(speed), did))
                     await socketio_manager.broadcast_device_update(did, "fan", device_name, {"state": "on", "speed": speed})
-                    print(f"⏰ KÍCH HOẠT (Quạt): Thiết bị {did} → speed={speed}")
+                    print(f"[Worker] KICH HOAT (Quat): Thiet bi {did} -> speed={speed}")
                 else:
-                    # Đèn / buzzer / cửa → gửi chuỗi thô "ON"/"OFF"/"LOCK"/...
+                    # Den / buzzer / cua -> gui chuoi tho "ON"/"OFF"/"LOCK"/...
                     mqtt_service.publish_command(did, cmd.upper())
                     conn.execute("UPDATE devices SET status = ? WHERE id = ?", (cmd.lower(), did))
                     state = "on" if cmd.lower() == "on" else "off"
                     await socketio_manager.broadcast_device_update(did, device_type, device_name, {"state": state})
-                    print(f"⏰ KÍCH HOẠT ({device_type}): Thiết bị {did} → Lệnh: {cmd}")
+                    print(f"[Worker] KICH HOAT ({device_type}): Thiet bi {did} -> Lenh: {cmd}")
 
                 conn.execute("UPDATE schedules SET status = 'DONE' WHERE schedule_id = ?", (sid,))
 
@@ -64,10 +62,9 @@ async def alarm_worker():
             conn.close()
             
         except Exception as e:
-            print(f"❌ Lỗi Worker hẹn giờ: {e}")
+            print(f"[Worker] Loi Worker hen gio: {e}")
 
         await asyncio.sleep(5)
-
 
 async def buzzer_alarm_worker():
     """Quét bảng alarms mỗi 30 giây, kích hoạt buzzer khi đến giờ báo thức"""
@@ -158,9 +155,10 @@ async def buzzer_alarm_worker():
         await asyncio.sleep(30)
 
 
+
 async def cleanup_worker():
-    """Mỗi 24 giờ xóa dữ liệu lịch sử cũ hơn 7 ngày"""
-    print("🚀 Worker dọn dẹp dữ liệu đã bắt đầu...")
+    """Moi 24 gio xoa du lieu lich su cu hon 7 ngay"""
+    print("[Worker] Don dep du lieu da bat dau...")
     while True:
         delete_old_history()
-        await asyncio.sleep(86400)  # 24 giờ
+        await asyncio.sleep(86400)  # 24 gio

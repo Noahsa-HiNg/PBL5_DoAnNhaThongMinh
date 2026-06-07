@@ -10,7 +10,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.voiceai_dev"
+        applicationId = "com.voiceai"
         minSdk = 26
         targetSdk = 35
         versionCode = 2

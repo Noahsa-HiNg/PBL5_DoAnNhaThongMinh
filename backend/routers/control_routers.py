@@ -55,7 +55,7 @@ async def control_all_lights(request: LightControlRequest):
     }
 
 @router.post("/light/{device_id}")
-def control_light(device_id: int, request: LightControlRequest):
+async def control_light(device_id: int, request: LightControlRequest):
     """Bật/tắt 1 đèn theo ID"""
     state = request.state.upper()
     if state not in ["ON", "OFF"]:
@@ -67,6 +67,7 @@ def control_light(device_id: int, request: LightControlRequest):
     
     update_device_status(device_id, state.lower())
     mqtt_service.publish_command(device_id, state)
+    await broadcast_device_update(device_id, "light", device["name"], {"state": state.lower()})
     
     return {
         "status": "success",
@@ -84,7 +85,7 @@ def control_light(device_id: int, request: LightControlRequest):
 # ============================================================
 
 @router.post("/fan/{device_id}/adjust")
-def adjust_fan_speed(device_id: int, request: FanAdjustRequest):
+async def adjust_fan_speed(device_id: int, request: FanAdjustRequest):
     """Tăng/giảm tốc độ quạt (up/down)"""
     if request.action not in ["up", "down"]:
         raise HTTPException(status_code=400, detail="action chỉ được là 'up' hoặc 'down'")
@@ -109,6 +110,7 @@ def adjust_fan_speed(device_id: int, request: FanAdjustRequest):
     payload = json.dumps({"speed": new_speed})
     mqtt_service.publish_command(device_id, payload)
     update_device_status(device_id, str(new_speed))
+    await broadcast_device_update(device_id, "fan", device["name"], {"state": "on", "speed": new_speed})
     
     return {
         "status": "success",
@@ -122,7 +124,7 @@ def adjust_fan_speed(device_id: int, request: FanAdjustRequest):
     }
 
 @router.post("/fan/{device_id}")
-def control_fan(device_id: int, request: FanControlRequest):
+async def control_fan(device_id: int, request: FanControlRequest):
     """Điều khiển quạt — state: on/off, speed: 0-3"""
     state = request.state.lower()
     if state not in ["on", "off"]:
@@ -144,6 +146,7 @@ def control_fan(device_id: int, request: FanControlRequest):
     payload = json.dumps({"speed": speed})
     mqtt_service.publish_command(device_id, payload)
     update_device_status(device_id, str(speed))
+    await broadcast_device_update(device_id, "fan", device["name"], {"state": state, "speed": speed})
     
     return {
         "status": "success",
@@ -162,7 +165,7 @@ def control_fan(device_id: int, request: FanControlRequest):
 # ============================================================
 
 @router.post("/door/{device_id}")
-def control_door(device_id: int, request: DoorControlRequest):
+async def control_door(device_id: int, request: DoorControlRequest):
     """Khóa/mở cửa — action: lock/unlock"""
     if request.action not in ["lock", "unlock"]:
         raise HTTPException(status_code=400, detail="action chỉ được là 'lock' hoặc 'unlock'")
@@ -176,6 +179,7 @@ def control_door(device_id: int, request: DoorControlRequest):
     
     update_device_status(device_id, new_status)
     mqtt_service.publish_command(device_id, request.action.upper())
+    await broadcast_device_update(device_id, "door_lock", device["name"], {"state": new_status})
     
     return {
         "status": "success",
@@ -193,7 +197,7 @@ def control_door(device_id: int, request: DoorControlRequest):
 # ============================================================
 
 @router.post("/buzzer/{device_id}")
-def control_buzzer(device_id: int, request: BuzzerControlRequest):
+async def control_buzzer(device_id: int, request: BuzzerControlRequest):
     """Bật/tắt loa — state: on/off"""
     state = request.state.lower()
     if state not in ["on", "off"]:
@@ -205,6 +209,7 @@ def control_buzzer(device_id: int, request: BuzzerControlRequest):
     
     update_device_status(device_id, state)
     mqtt_service.publish_command(device_id, state.upper())
+    await broadcast_device_update(device_id, "buzzer", device["name"], {"state": state})
     
     return {
         "status": "success",

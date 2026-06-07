@@ -129,16 +129,7 @@ fun DevicesScreen(viewModel: DevicesViewModel) {
                 }
             }
 
-            // ── Section Cảm biến ──────────────────────────
-            if (uiState.sensors.isNotEmpty()) {
-                DeviceSection(title = "🌡️ Cảm biến") {
-                    uiState.sensors.forEach { sensor ->
-                        SensorCard(device = sensor)
-                    }
-                }
-            }
-
-            if (uiState.lights.isEmpty() && uiState.fans.isEmpty() && uiState.doors.isEmpty() && uiState.buzzers.isEmpty() && uiState.sensors.isEmpty()) {
+            if (uiState.lights.isEmpty() && uiState.fans.isEmpty() && uiState.doors.isEmpty() && uiState.buzzers.isEmpty()) {
                 EmptyState(onRetry = { viewModel.loadDevices() })
             }
         }
@@ -291,29 +282,6 @@ private fun BuzzerCard(device: Device, onToggle: () -> Unit) {
                 Text(device.displayStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Switch(checked = isOn, onCheckedChange = { onToggle() })
-        }
-    }
-}
-
-@Composable
-private fun SensorCard(device: Device) {
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            val icon = when {
-                device.name.contains("nhiệt", true) -> Icons.Default.Thermostat
-                device.name.contains("ẩm", true) -> Icons.Default.WaterDrop
-                device.name.contains("sáng", true) -> Icons.Default.WbSunny
-                else -> Icons.Default.Sensors
-            }
-            Icon(icon, null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(device.name, style = MaterialTheme.typography.bodyMedium)
-                Text(text = device.status, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            }
-            if (device.timestamp != null) {
-                Text(text = device.timestamp.takeLast(8), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-            }
         }
     }
 }

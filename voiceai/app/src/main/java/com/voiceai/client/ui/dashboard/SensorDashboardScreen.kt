@@ -14,6 +14,13 @@ import com.github.mikephil.charting.charts.BarChart
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import com.voiceai.client.data.local.entity.SensorReadingEntity
 import org.koin.androidx.compose.koinViewModel
 
@@ -24,9 +31,12 @@ fun SensorDashboardScreen(
 ) {
     val tempHumidHistory by viewModel.tempHumidHistory.collectAsState()
     val lightHistory by viewModel.lightHistory.collectAsState()
+    val currentTemp by viewModel.currentTemp.collectAsState()
+    val currentHumid by viewModel.currentHumid.collectAsState()
+    val currentLight by viewModel.currentLight.collectAsState()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Sensor Dashboard") }) }
+        topBar = { TopAppBar(title = { Text("Cảm biến") }) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -35,6 +45,36 @@ fun SensorDashboardScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
+            // Current Values Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                SensorValueCard(
+                    label = "Nhiệt độ",
+                    value = currentTemp?.let { "$it°C" } ?: "--",
+                    icon = Icons.Default.Thermostat,
+                    color = Color(0xFFE57373),
+                    modifier = Modifier.weight(1f)
+                )
+                SensorValueCard(
+                    label = "Độ ẩm",
+                    value = currentHumid?.let { "$it%" } ?: "--",
+                    icon = Icons.Default.WaterDrop,
+                    color = Color(0xFF64B5F6),
+                    modifier = Modifier.weight(1f)
+                )
+                SensorValueCard(
+                    label = "Ánh sáng",
+                    value = currentLight?.let { "$it lx" } ?: "--",
+                    icon = Icons.Default.WbSunny,
+                    color = Color(0xFFFFD54F),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             Text("Temperature & Humidity (Device 9)", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             Card(
@@ -96,6 +136,32 @@ fun TemperatureHumidityChart(history: List<SensorReadingEntity>) {
         },
         modifier = Modifier.fillMaxSize().padding(8.dp)
     )
+}
+
+@Composable
+fun SensorValueCard(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    ElevatedCard(
+        modifier = modifier,
+        colors = CardDefaults.elevatedCardColors(containerColor = color.copy(alpha = 0.1f))
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = color)
+        }
+    }
 }
 
 @Composable

@@ -81,27 +81,35 @@ interface ApiService {
     suspend fun controlBuzzer(@Body command: Map<String, String>): MessageResponse
 
     // ════════════════════════════════════════════
-    //  HẸN GIỜ & BÁO THỨC
+    //  HẸN GIỜ (SCHEDULES)
     // ════════════════════════════════════════════
 
-    /** POST /api/schedules/set */
+    /** GET /api/schedules/devices — Lấy danh sách thiết bị để chọn */
+    @GET("api/schedules/devices")
+    suspend fun getScheduleDevices(): ScheduleDevicesResponse
+
+    /** POST /api/schedules/set — Đặt hẹn giờ tuyệt đối */
     @POST("api/schedules/set")
-    suspend fun setSchedule(@Body req: AlarmRequest): MessageResponse
+    suspend fun setSchedule(@Body req: ScheduleSetRequest): MessageResponse
 
-    /** POST /api/schedules/set-timer */
+    /** POST /api/schedules/set-timer — Đặt hẹn giờ sau N phút */
     @POST("api/schedules/set-timer")
-    suspend fun setTimer(@Body req: TimerRequest): MessageResponse
+    suspend fun setTimer(@Body req: TimerSetRequest): MessageResponse
 
-    /** GET /api/schedules/active */
+    /** POST /api/schedules/batch — Hẹn giờ hàng loạt */
+    @POST("api/schedules/batch")
+    suspend fun setBatchSchedule(@Body req: BatchScheduleRequest): MessageResponse
+
+    /** GET /api/schedules/active — Lấy danh sách hẹn giờ đang chờ */
     @GET("api/schedules/active")
-    suspend fun getActiveSchedules(): List<Schedule>
+    suspend fun getActiveSchedules(): SchedulesResponse
 
-    /** DELETE /api/schedules/{id} */
+    /** DELETE /api/schedules/{id} — Hủy 1 hẹn giờ */
     @DELETE("api/schedules/{id}")
     suspend fun cancelSchedule(@Path("id") scheduleId: Int): MessageResponse
 
-    /** DELETE /api/schedules/all */
-    @DELETE("api/schedules/all")
+    /** DELETE /api/schedules/cancel-all — Hủy tất cả hẹn giờ */
+    @DELETE("api/schedules/cancel-all")
     suspend fun cancelAllSchedules(): MessageResponse
 
     // ════════════════════════════════════════════

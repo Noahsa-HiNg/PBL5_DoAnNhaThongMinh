@@ -23,28 +23,65 @@ data class AutoCommand(
     val command: String  // "ON" hoặc "OFF"
 )
 
-// ── Đặt báo thức (set-alarm) ────────────────────────────
-data class AlarmRequest(
-    val device_id: Int,
+// ── Đặt hẹn giờ tuyệt đối ────────────────────────────
+data class ScheduleSetRequest(
+    val device_name: String,
     val command: String,    // "ON" | "OFF"
-    val time: String        // "YYYY-MM-DD HH:mm:ss" hoặc "HH:mm"
+    val time: String        // "YYYY-MM-DD HH:mm:ss"
 )
 
 // ── Hẹn giờ sau N phút (set-timer) ──────────────────────
-data class TimerRequest(
-    val device_id: Int,
+data class TimerSetRequest(
+    val device_name: String,
     val command: String,
     @SerializedName("delay_minutes")
     val delayMinutes: Int
 )
 
-// ── Hẹn giờ hàng loạt (timer-batch) ─────────────────────
-data class BatchTimerRequest(
+// ── Hẹn giờ hàng loạt (batch) ───────────────────────────
+data class BatchScheduleRequest(
     @SerializedName("device_type")
     val deviceType: String,    // "light" | "fan" | "all"
     val command: String,        // "ON" | "OFF"
     @SerializedName("delay_minutes")
     val delayMinutes: Int
+)
+
+// ── Response danh sách thiết bị cho hẹn giờ ─────────────
+data class ScheduleDevicesResponse(
+    val status: String,
+    val data: ScheduleDevicesData
+)
+
+data class ScheduleDevicesData(
+    val devices: List<ScheduleDevice>
+)
+
+data class ScheduleDevice(
+    @SerializedName("device_id") val deviceId: Int,
+    @SerializedName("device_name") val deviceName: String,
+    @SerializedName("device_type") val deviceType: String
+)
+
+// ── Response danh sách hẹn giờ đang chờ ──────────────────
+data class SchedulesResponse(
+    val status: String,
+    val data: SchedulesData
+)
+
+data class SchedulesData(
+    val total: Int,
+    val schedules: List<Schedule>
+)
+
+data class Schedule(
+    @SerializedName("schedule_id") val id: Int,
+    @SerializedName("device_id") val deviceId: Int,
+    @SerializedName("device_name") val deviceName: String,
+    val command: String,
+    @SerializedName("trigger_time") val triggerTime: String,
+    val status: String,
+    @SerializedName("created_at") val createdAt: String
 )
 
 // ── Response thời tiết ───────────────────────────────────
