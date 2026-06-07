@@ -27,11 +27,41 @@ Usage:
 """
 
 import re
+from num2words import num2words
 
 
 # ─────────────────────────────────────────────────────────────────
 #  CÁC HÀM THAY THẾ TỪNG PATTERN
 # ─────────────────────────────────────────────────────────────────
+
+def _num_to_vi(n_str: str) -> str:
+    """Chuyển chuỗi số (int hoặc float) → chữ tiếng Việt.
+    Ví dụ: '30' → 'ba mươi', '28.5' → 'hai mươi tám phẩy năm'
+    """
+    try:
+        # Thử int trước
+        if '.' not in n_str and ',' not in n_str:
+            return num2words(int(n_str), lang='vi')
+        # Float: chuẩn hóa dấu phẩy → chấm rồi đọc
+        val = float(n_str.replace(',', '.'))
+        return num2words(val, lang='vi')
+    except Exception:
+        return n_str  # fallback: giữ nguyên nếu lỗi
+
+
+def _replace_numbers(text: str) -> str:
+    """Thay toàn bộ số standalone → chữ tiếng Việt.
+    Chỉ replace số đứng độc lập (không dính vào chữ), ví dụ:
+      '30' → 'ba mươi'
+      '75' → 'bảy mươi lăm'
+    Số đã được xử lý bởi các pattern trước (°C, %, ppm, HH:MM)
+    đã thành chữ rồi nên không bị match lại.
+    """
+    def _repl(m):
+        return _num_to_vi(m.group(0))
+    # Match số nguyên hoặc thập phân (dấu chấm hoặc phẩy)
+    return re.sub(r'\b\d+(?:[.,]\d+)?\b', _repl, text)
+
 
 def _replace_co2(text: str) -> str:
     """CO2 → CO hai"""
@@ -39,9 +69,14 @@ def _replace_co2(text: str) -> str:
 
 
 def _replace_temperature(text: str) -> str:
-    """28°C → 28 độ C | 16°F → 16 độ F"""
-    text = re.sub(r'(\d+(?:[.,]\d+)?)\s*°C', r'\1 độ C', text)
-    text = re.sub(r'(\d+(?:[.,]\d+)?)\s*°F', r'\1 độ F', text)
+    """28°C → 'hai mươi tám độ xê' | 28C → tương tự
+    Dùng 'độ xê' thay vì 'độ C' vì MeloTTS đọc chữ 'C' thành 'xê' không chuẩn,
+    nên viết thẳng phiên âm để TTS đọc đúng.
+    """
+    text = re.sub(r'(\d+(?:[.,]\d+)?)\s*°C', r'\1 độ xê', text)
+    text = re.sub(r'(\d+(?:[.,]\d+)?)\s*°F', r'\1 độ ép-phờ', text)
+    text = re.sub(r'(\d+(?:[.,]\d+)?)\s*C\b', r'\1 độ xê', text)
+    text = re.sub(r'(\d+(?:[.,]\d+)?)\s*F\b', r'\1 độ ép-phờ', text)
     return text
 
 
@@ -114,14 +149,15 @@ def normalize_for_tts(text: str) -> str:
 
     Thứ tự áp dụng:
       1. CO2  (trước các bước số để không bị xung đột)
-      2. Nhiệt độ °C / °F
-      3. Phần trăm %
-      4. ppm
-      5. Giờ HH:MM
-      6. Em dash —
-      7. Dấu chấm phẩy ;
-      8. Ngoặc đơn ( )
-      9. Dọn dẹp cuối
+      2. Nhiệt độ °C / °F / C / F  → "XX độ"
+      3. Phần trăm %               → "XX phần trăm"
+      4. ppm                       → "XX phần triệu"
+      5. Giờ HH:MM                 → "XX giờ ..."
+      6. Em dash —                 → ","
+      7. Dấu chấm phẩy ;          → ","
+      8. Ngoặc đơn ( )             → bỏ ngoặc
+      9. Số còn lại                → chữ tiếng Việt (num2words)
+     10. Dọn dẹp cuối
 
     Args:
         text: Câu tiếng Việt từ ViT5 generator
@@ -140,6 +176,7 @@ def normalize_for_tts(text: str) -> str:
     text = _replace_em_dash(text)
     text = _replace_semicolon(text)
     text = _remove_parentheses(text)
+    text = _replace_numbers(text)   # convert số còn lại → chữ
     text = _cleanup_punctuation(text)
 
     return text
@@ -153,45 +190,52 @@ if __name__ == '__main__':
     test_cases = [
         # (input, expected_output)
 
-        # --- Nhiệt độ ---
+        # --- Nhiệt độ KHÔNG có ký tự ° (ViT5 đôi khi bỏ mất) ---
+        ("Dạ nhiệt độ 30C, bình thường ạ.",
+         "Dạ nhiệt độ ba mươi độ xê, bình thường ạ."),
+
+        ("Dạ nhiệt 28.5C, độ ẩm 75%, bình thường ạ.",
+         "Dạ nhiệt hai mươi tám phẩy năm mươi độ xê, độ ẩm bảy mươi lăm phần trăm, bình thường ạ."),
+
+        # --- Nhiệt độ có ° ---
         ("Dạ đo được 34°C, nóng rồi ạ.",
-         "Dạ đo được 34 độ C, nóng rồi ạ."),
+         "Dạ đo được ba mươi bốn độ xê, nóng rồi ạ."),
 
         # --- Độ ẩm ---
         ("Dạ độ ẩm 78%, hơi cao rồi ạ.",
-         "Dạ độ ẩm 78 phần trăm, hơi cao rồi ạ."),
+         "Dạ độ ẩm bảy mươi tám phần trăm, hơi cao rồi ạ."),
 
         # --- ppm ---
         ("Dạ CO2 900ppm — cao rồi ạ, nên mở cửa thông thoáng ạ.",
-         "Dạ CO hai 900 phần triệu, cao rồi ạ, nên mở cửa thông thoáng ạ."),
+         "Dạ CO hai chín trăm phần triệu, cao rồi ạ, nên mở cửa thông thoáng ạ."),
 
         # --- Tổng hợp 3 sensor + dấu ; ---
         ("Dạ cần chú ý: nhiệt 31°C hơi cao; độ ẩm 35% hơi thấp ạ.",
-         "Dạ cần chú ý: nhiệt 31 độ C hơi cao, độ ẩm 35 phần trăm hơi thấp ạ."),
+         "Dạ cần chú ý: nhiệt ba mươi mốt độ xê hơi cao, độ ẩm ba mươi lăm phần trăm hơi thấp ạ."),
 
         # --- Tổng hợp 3 sensor + em dash ---
         ("Dạ nhiệt 22°C, ẩm 45%, CO2 350ppm — tất cả bình thường ạ.",
-         "Dạ nhiệt 22 độ C, ẩm 45 phần trăm, CO hai 350 phần triệu, tất cả bình thường ạ."),
+         "Dạ nhiệt hai mươi hai độ xê, ẩm bốn mươi lăm phần trăm, CO hai ba trăm năm mươi phần triệu, tất cả bình thường ạ."),
 
         # --- Ngoặc đơn ---
         ("Dạ chú ý: độ ẩm 90% hơi cao. Còn lại (nhiệt 20°C, CO2 700ppm ổn) ạ.",
-         "Dạ chú ý: độ ẩm 90 phần trăm hơi cao. Còn lại nhiệt 20 độ C, CO hai 700 phần triệu ổn ạ."),
+         "Dạ chú ý: độ ẩm chín mươi phần trăm hơi cao. Còn lại nhiệt hai mươi độ xê, CO hai bảy trăm phần triệu ổn ạ."),
 
         # --- Giờ tròn ---
         ("Dạ chừ là 22:00 tối ạ.",
-         "Dạ chừ là 22 giờ tối ạ."),
+         "Dạ chừ là hai mươi hai giờ tối ạ."),
 
         # --- Giờ rưỡi ---
         ("Dạ bây giờ là 21:30 tối ạ.",
-         "Dạ bây giờ là 21 giờ rưỡi tối ạ."),
+         "Dạ bây giờ là hai mươi mốt giờ rưỡi tối ạ."),
 
         # --- Giờ có phút ---
         ("Dạ chừ là 07:15 sáng ạ.",
-         "Dạ chừ là 7 giờ 15 phút sáng ạ."),
+         "Dạ chừ là bảy giờ mười lăm phút sáng ạ."),
 
         # --- Schedule có % ---
         ("Dạ em đặt hẹn sau 30 phút tăng quạt phòng bếp lên 80% ạ.",
-         "Dạ em đặt hẹn sau 30 phút tăng quạt phòng bếp lên 80 phần trăm ạ."),
+         "Dạ em đặt hẹn sau ba mươi phút tăng quạt phòng bếp lên tám mươi phần trăm ạ."),
 
         # --- Câu bình thường không có ký tự đặc biệt ---
         ("Dạ em bật đèn phòng ngủ rồi ạ.",

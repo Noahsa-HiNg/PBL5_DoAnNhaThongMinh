@@ -710,10 +710,14 @@ class SmartHomeDialogManager:
         if self.api:
             try:
                 data = self.api.get_sensor_latest(SENSOR_TEMP_HUMI_ID)
+                # Response dạng nested: {"temperature": {"value": 26.5, "unit": "°C"}, ...}
+                # hoặc flat: {"temperature": 26.5, ...} — xử lý cả hai
                 t_raw = data.get('temperature', data.get('temp'))
                 h_raw = data.get('humidity',    data.get('hum'))
-                if isinstance(t_raw, (int, float)): t = t_raw
-                if isinstance(h_raw, (int, float)): h = h_raw
+                if isinstance(t_raw, dict):   t_raw = t_raw.get('value')
+                if isinstance(h_raw, dict):   h_raw = h_raw.get('value')
+                if isinstance(t_raw, (int, float)): t = int(round(t_raw))
+                if isinstance(h_raw, (int, float)): h = int(round(h_raw))
             except APIError as e:
                 logger.warning(f"API sensor temp/humi lỗi, dùng mock: {e}")
 
