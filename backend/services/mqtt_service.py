@@ -19,10 +19,10 @@ class MQTTManager:
 
     def on_connect(self, client, userdata, flags, rc):
         if rc == 0:
-            print("✅ Đã kết nối với MQTT Broker!")
+            print("[MQTT] Da ket noi voi MQTT Broker!")
             self.client.subscribe("home/sensors/#")
         else:
-            print(f"❌ Lỗi kết nối MQTT, mã lỗi: {rc}")
+            print(f"[MQTT] Loi ket noi MQTT, ma loi: {rc}")
 
     def on_message(self, client, userdata, msg):
         topic = msg.topic
@@ -36,7 +36,7 @@ class MQTTManager:
                 if "temp" in data:
                     # ── DHT11: Nhiệt độ & Độ ẩm ──
                     insert_sensor_data(device_id, data["temp"], data.get("humi", 0))
-                    print(f"📥 Cảm biến ID {device_id} (DHT11): {data['temp']}°C, {data['humi']}%")
+                    print(f"[MQTT] Cam bien ID {device_id} (DHT11): {data['temp']}C, {data['humi']}%")
 
                     # Push xuống mobile qua Socket.IO
                     self._broadcast_sensor_update(
@@ -50,7 +50,7 @@ class MQTTManager:
                 elif "light" in data:
                     # ── Cảm biến Ánh sáng ──
                     insert_sensor_data(device_id, data["light"], 0)
-                    print(f"📥 Cảm biến ID {device_id} (Ánh sáng): {data['light']}")
+                    print(f"[MQTT] Cam bien ID {device_id} (Anh sang): {data['light']}")
 
                     # Push xuống mobile qua Socket.IO
                     self._broadcast_sensor_update(
@@ -62,7 +62,7 @@ class MQTTManager:
                     )
 
             except Exception as e:
-                print(f"❌ Lỗi xử lý MQTT message: {e}")
+                print(f"[MQTT] Loi xu ly MQTT message: {e}")
 
     def _broadcast_sensor_update(self, device_id: int, value1: float, value2: float | None, unit1: str, unit2: str | None):
         """
@@ -88,13 +88,13 @@ class MQTTManager:
             self.client.connect(self.broker, self.port, 60)
             self.client.loop_start()
         except Exception as e:
-            print(f"⚠️ Không tìm thấy MQTT Broker (Mosquitto) đang chạy. Lỗi: {e}")
+            print(f"[MQTT] Khong tim thay MQTT Broker (Mosquitto) dang chay. Loi: {e}")
 
     def publish_command(self, device_id: int, command: str):
         """Hàm dùng để ra lệnh Bật/Tắt gửi xuống ESP32"""
         topic = f"home/control/device/{device_id}"
         self.client.publish(topic, command)
-        print(f"📤 Đã gửi lệnh [{command}] xuống topic [{topic}]")
+        print(f"[MQTT] Da gui lenh [{command}] xuong topic [{topic}]")
 
 # Singleton — dùng chung toàn dự án
 mqtt_service = MQTTManager()

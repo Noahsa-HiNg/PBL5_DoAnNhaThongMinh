@@ -1,3 +1,10 @@
+"""
+main.py — Smart Home Backend Server (FastAPI + Socket.IO)
+Fix: Sua loi recursion khi mount socketio.ASGIApp.
+
+Chay:  python -m uvicorn backend.main:asgi_app --host 0.0.0.0 --port 8000 --reload
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -24,13 +31,13 @@ from routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Khởi động và dọn dẹp tài nguyên khi server bật/tắt"""
-    print("🚀 Đang khởi động Smart Home Server...")
+    """Khoi dong va don dep tai nguyen khi server bat/tat"""
+    print("[Server] Dang khoi dong Smart Home Server...")
 
-    # Khởi tạo Database
+    # Khoi tao Database
     init_db()
 
-    # Kết nối MQTT Broker
+    # Ket noi MQTT Broker
     mqtt_service.start()
 
     # Khởi động AI Pipeline (STT + NLU + DM + NLG + TTS) — load 1 lần duy nhất
@@ -41,21 +48,22 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(buzzer_alarm_worker())
     asyncio.create_task(cleanup_worker())
 
-    yield  # Server đang chạy
+    yield  # Server dang chay
 
-    # Tắt server
-    print("🛑 Đang tắt Server...")
+    # Tat server
+    print("[Server] Dang tat Server...")
     mqtt_service.client.loop_stop()
     mqtt_service.client.disconnect()
 
-app = FastAPI(
+# --- FastAPI app (chi chua REST APIs) -------------------------------
+fastapi_app = FastAPI(
     title="PBL5 Smart Home API",
-    description="REST API cho hệ thống nhà thông minh — PBL5 ĐHBK Đà Nẵng",
+    description="REST API cho he thong nha thong minh -- PBL5 DHBK Da Nang",
     version="2.0.0",
     lifespan=lifespan
 )
 
-app.add_middleware(
+fastapi_app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
@@ -63,34 +71,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount Socket.IO app
-app.mount("/", socketio.ASGIApp(sio, other_asgi_app=app))
+# --- Dang ky tat ca Routers ---
+fastapi_app.include_router(system_routers.router)      # /api/health, /api/time
+fastapi_app.include_router(status_routers.router)       # /api/status/...
+fastapi_app.include_router(sensor_routers.router)       # /api/sensors/...
+fastapi_app.include_router(control_routers.router)      # /api/control/...
+fastapi_app.include_router(schedule_routers.router)     # /api/schedules/...
+fastapi_app.include_router(alarm_routers.router)        # /api/alarms/...
+fastapi_app.include_router(bulk_routers.router)         # /api/bulk/...
+fastapi_app.include_router(weather_routers.router)      # /api/weather/...
+fastapi_app.include_router(context_routers.router)      # /api/context/...
+fastapi_app.include_router(voice_routers.router)        # /api/voice/...
 
-# --- Đăng ký tất cả Routers ---
-app.include_router(system_routers.router)      # /api/health, /api/time
-app.include_router(status_routers.router)       # /api/status/...
-app.include_router(sensor_routers.router)       # /api/sensors/...
-app.include_router(control_routers.router)      # /api/control/...
-app.include_router(schedule_routers.router)     # /api/schedules/...
-app.include_router(alarm_routers.router)        # /api/alarms/...
-app.include_router(bulk_routers.router)         # /api/bulk/...
-app.include_router(weather_routers.router)      # /api/weather/...
-app.include_router(context_routers.router)      # /api/context/...
-app.include_router(voice_routers.router)        # /api/voice/...
-
-@app.get("/", tags=["Hệ thống"])
+@fastapi_app.get("/", tags=["He thong"])
 def root():
-    return {"message": "✅ PBL5 Smart Home Server v2.0 đang hoạt động!"}
-
+    return {"message": "PBL5 Smart Home Server v2.0 dang hoat dong!"}
 
 # --- Socket.IO Events ---
 @sio.event
 async def connect(sid, environ):
-    print(f"📱 Client {sid} connected to Socket.IO")
+    print(f"[Socket.IO] Client {sid} connected")
 
 @sio.event
 async def disconnect(sid):
-    print(f"📴 Client {sid} disconnected from Socket.IO")
+    print(f"[Socket.IO] Client {sid} disconnected")
+
+# --- ASGI app chinh: Socket.IO se handle /socket.io/, FastAPI handle phan con lai ---
+asgi_app = socketio.ASGIApp(sio, other_asgi_app=fastapi_app)
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=SERVER_PORT, reload=True)
+    uvicorn.run("main:asgi_app", host="0.0.0.0", port=SERVER_PORT, reload=True)
