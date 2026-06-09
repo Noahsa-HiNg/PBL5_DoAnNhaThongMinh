@@ -12,7 +12,8 @@ import kotlinx.coroutines.launch
 class SensorDashboardViewModel(
     private val apiService: ApiService,
     private val socketRepository: SocketRepository,
-    private val sensorReadingDao: SensorReadingDao
+    private val sensorReadingDao: SensorReadingDao,
+    private val userPreferences: com.voiceai.client.data.preferences.UserPreferences
 ) : ViewModel() {
 
     private val _tempHumidHistory = MutableStateFlow<List<SensorReadingEntity>>(emptyList())

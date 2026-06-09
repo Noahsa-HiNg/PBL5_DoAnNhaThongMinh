@@ -163,28 +163,55 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             }
 
             // ── Section: Phản hồi giọng nói ─────────────────────────────
-            SettingsSection(title = "Giọng nói") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
+            SettingsSection(title = "Giao diện & Giọng nói") {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // Chế độ sáng tối
+                    Column {
                         Text(
-                            text = "Đọc phản hồi bằng tiếng Việt",
+                            text = "Chế độ giao diện",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium
                         )
-                        Text(
-                            text = "Sử dụng Text-to-Speech để đọc câu trả lời của trợ lý ảo",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
+                        Spacer(Modifier.height(8.dp))
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            val modes = listOf("light" to "Sáng", "dark" to "Tối", "auto" to "Tự động")
+                            modes.forEachIndexed { index, (mode, label) ->
+                                SegmentedButton(
+                                    selected = uiState.themeMode == mode,
+                                    onClick = { viewModel.setThemeMode(mode) },
+                                    shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size)
+                                ) {
+                                    Text(label)
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    // TTS Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Đọc phản hồi bằng tiếng Việt",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Sử dụng Text-to-Speech cho trợ lý ảo",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                        Switch(
+                            checked = uiState.isTtsEnabled,
+                            onCheckedChange = { viewModel.toggleTts(it) }
                         )
                     }
-                    Switch(
-                        checked = uiState.isTtsEnabled,
-                        onCheckedChange = { viewModel.toggleTts(it) }
-                    )
                 }
             }
 

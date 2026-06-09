@@ -18,7 +18,8 @@ data class SettingsUiState(
     val isCheckingHealth: Boolean  = false,   // loading indicator nút Kiểm tra
     val healthStatus: HealthStatus? = null,   // badge kết quả health check
     val error: String?             = null,    // trigger snackbar lỗi
-    val isTtsEnabled: Boolean      = false
+    val isTtsEnabled: Boolean      = false,
+    val themeMode: String          = "auto"
 )
 
 data class HealthStatus(
@@ -38,7 +39,8 @@ class SettingsViewModel(
             currentPort = userPreferences.serverPort,
             inputIp   = userPreferences.serverIp,
             inputPort = userPreferences.serverPort.toString(),
-            isTtsEnabled = userPreferences.ttsEnabled
+            isTtsEnabled = userPreferences.ttsEnabled,
+            themeMode = userPreferences.themeMode
         )
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -64,6 +66,11 @@ class SettingsViewModel(
     fun toggleTts(enabled: Boolean) {
         userPreferences.ttsEnabled = enabled
         _uiState.update { it.copy(isTtsEnabled = enabled) }
+    }
+
+    fun setThemeMode(mode: String) {
+        userPreferences.themeMode = mode
+        _uiState.update { it.copy(themeMode = mode) }
     }
 
     fun checkHealth() {
