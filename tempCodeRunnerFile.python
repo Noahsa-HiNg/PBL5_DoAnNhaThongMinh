@@ -1,6 +1,10 @@
-from melo.api import TTS
-tts = TTS(language='VI', device='cuda',
-    config_path=r'E:\SV\Ki6\PBL5\PBL5_DoAnNhaThongMinh\agent\MeloTTS_Vietnamese-main\models\config.json',
-    ckpt_path=r'E:\SV\Ki6\PBL5\PBL5_DoAnNhaThongMinh\agent\MeloTTS_Vietnamese-main\models\G_463000.pth')
-p = next(tts.model.parameters())
-print('Device thực tế:', p.device)
+
+from huggingface_hub import hf_hub_download
+import shutil, os
+
+dest = r'e:\SV\Ki6\PBL5\PBL5_DoAnNhaThongMinh\agent\model\PhoWhisper_Base_Finetuned_V2'
+for f in ['vocab.json', 'normalizer.json', 'merges.txt']:
+    path = hf_hub_download(repo_id='openai/whisper-base', filename=f)
+    print(f'Downloaded to: {path}')
+    shutil.copy(path, os.path.join(dest, f))
+    print(f'Copied to: {os.path.join(dest, f)}')

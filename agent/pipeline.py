@@ -137,6 +137,7 @@ class SmartHomePipeline:
                     logger.info("✅ STT sẵn sàng!")
                 except Exception as e:
                     logger.warning(f"⚠️ STT không khởi động được, bỏ qua: {e}")
+                    import traceback; traceback.print_exc()
         else:
             logger.info("🔇 [0/4] STT bị tắt (--no-stt)")
 

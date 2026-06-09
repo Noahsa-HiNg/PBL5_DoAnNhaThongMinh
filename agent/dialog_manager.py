@@ -235,12 +235,22 @@ def _extract_slots(slots: List) -> Tuple:
         if not devices: return []
         rooms = ca.get('rooms', [])
         if not rooms: rooms = [None]
-        return [{'action':      ca['action'],
-                 'action_slot': ca.get('action_slot', ''),
-                 'is_all':      ca.get('is_all', False),
-                 'device':      dev,
-                 'room':        rm}
-                for dev in devices for rm in rooms]
+        # [FIX-BUG3] Deduplicate (device, room) pairs — NLU đôi khi predict
+        # cùng 1 room token 2 lần (e.g. "phòng" → B-room-bedroom × 2)
+        seen_pairs = set()
+        result = []
+        for dev in devices:
+            for rm in rooms:
+                key = (dev, rm)
+                if key in seen_pairs:
+                    continue
+                seen_pairs.add(key)
+                result.append({'action':      ca['action'],
+                               'action_slot': ca.get('action_slot', ''),
+                               'is_all':      ca.get('is_all', False),
+                               'device':      dev,
+                               'room':        rm})
+        return result
 
     for word, lbl, conf in slots:
         raw      = lbl[2:] if lbl.startswith(('B-', 'I-')) else lbl
@@ -508,6 +518,19 @@ class SmartHomeDialogManager:
 
             # Không có room → pass qua, giữ waiting_room
         # ─────────────────────────────────────────────────────────────
+
+        # [FIX-BUG4] NLU đôi khi predict control_device khi câu có time slot
+        # (vd: "tắt hết đèn lúc 10 giờ" → 68.5% control_device, có time_absolute)
+        # → Override sang schedule_set để DM xử lý đúng
+        if intent == 'control_device':
+            has_time_slot = any(
+                lbl[2:] in ('time_absolute', 'time_delay')
+                for _, lbl, _ in slots
+                if lbl.startswith('B-')
+            )
+            if has_time_slot:
+                logger.debug(f"[FIX-BUG4] Override intent control_device → schedule_set (time slot detected)")
+                intent = 'schedule_set'
 
         if intent == 'control_device':
             return self._handle_control(slots, state)
@@ -920,14 +943,18 @@ class SmartHomeDialogManager:
             action = act_dict.get('action', ''); device = act_dict.get('device', '')
             room   = act_dict.get('room');       act_s  = act_dict.get('action_slot', '')
             is_all = act_dict.get('is_all', False)
-            if room is None and device and device not in NO_ROOM_DEVICES:
+            # [FIX-BUG1] is_all=True → KHÔNG fallback room từ last_room
+            if room is None and device and device not in NO_ROOM_DEVICES and not is_all:
                 room = state.last_room
             if device == 'ventilation_fan': room = 'kitchen'
             if act_s:   parts.append(act_s)
             if device:  parts.append(f'device-{device}')
-            if room:    parts.append(f'room-{room}')
+            # [FIX-BUG2] is_all=True → không in room vào DM output
+            if room and not is_all: parts.append(f'room-{room}')
             parts.append(f'action_label={ACTION_LABEL.get(action, action)}')
-            state.last_device = device; state.last_room = room; state.last_action = action
+            state.last_device = device
+            state.last_room   = None if is_all else room
+            state.last_action = action
 
             # [FIX] Gọi API thật nếu có client
             if self.api and device:
